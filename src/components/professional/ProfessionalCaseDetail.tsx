@@ -58,6 +58,7 @@ interface CaseDetail {
     timeline?: string
     terms?: string
     status?: string
+    expiresAt?: string
   }>
 }
 
@@ -77,6 +78,7 @@ export function ProfessionalCaseDetail() {
   const [quoteAmount, setQuoteAmount] = useState('')
   const [quoteTimeline, setQuoteTimeline] = useState('')
   const [quoteTerms, setQuoteTerms] = useState('')
+  const [quoteValidDays, setQuoteValidDays] = useState('7')
   const [submittingQuote, setSubmittingQuote] = useState(false)
 
   // Proof form state
@@ -122,16 +124,21 @@ export function ProfessionalCaseDetail() {
     try {
       setSubmittingQuote(true)
       const rawAmount = quoteAmount.replace(/[^0-9]/g, '')
+      const expiresAt = quoteValidDays
+        ? new Date(Date.now() + parseInt(quoteValidDays, 10) * 24 * 60 * 60 * 1000).toISOString()
+        : undefined
       await apiPost(`/cases/${caseId}/quotes`, {
         scope: quoteScope,
         totalAmount: rawAmount ? parseInt(rawAmount, 10) : 0,
         timeline: quoteTimeline || undefined,
         terms: quoteTerms || undefined,
+        expiresAt,
       })
       setQuoteScope('')
       setQuoteAmount('')
       setQuoteTimeline('')
       setQuoteTerms('')
+      setQuoteValidDays('7')
       await fetchData()
     } catch (err) {
       // Quote failed silently for now
@@ -303,6 +310,22 @@ export function ProfessionalCaseDetail() {
                     onChange={(e) => setQuoteTimeline(e.target.value)}
                     placeholder="e.g. 3-5 business days"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    Quote Valid For
+                  </label>
+                  <select
+                    value={quoteValidDays}
+                    onChange={(e) => setQuoteValidDays(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                    <option value="">No expiry</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
@@ -524,6 +547,13 @@ export function ProfessionalCaseDetail() {
                           <Clock className="size-3" />
                           <span>{q.timeline}</span>
                         </div>
+                      )}
+                      {q.expiresAt && (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {new Date(q.expiresAt) < new Date()
+                            ? 'Expired'
+                            : `Expires ${new Date(q.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}`}
+                        </p>
                       )}
                     </div>
                   ))}

@@ -53,6 +53,7 @@ interface Quote {
   timeline: string
   terms: string
   status: string
+  expiresAt?: string
   professional?: {
     id: string
     name: string
@@ -224,6 +225,7 @@ export function CaseWorkspace() {
         timeline: String(q.timeline || ''),
         terms: String(q.terms || ''),
         status: String(q.status || ''),
+        expiresAt: q.expiresAt ? String(q.expiresAt) : undefined,
         professional: q.professional ? {
           id: String((q.professional as Record<string, unknown>).id || ''),
           name: String((q.professional as Record<string, unknown>).user?.profile?.displayName || (q.professional as Record<string, unknown>).user?.profile?.name || ''),
@@ -715,6 +717,14 @@ export function CaseWorkspace() {
 
                   {quote.terms && (
                     <p className="text-xs text-muted-foreground">{quote.terms}</p>
+                  )}
+
+                  {quote.expiresAt && (
+                    <p className={`text-xs ${new Date(quote.expiresAt) < new Date() ? 'text-rezzo-danger font-medium' : 'text-muted-foreground'}`}>
+                      {new Date(quote.expiresAt) < new Date()
+                        ? 'This quote has expired'
+                        : `Valid until ${new Date(quote.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    </p>
                   )}
 
                   {quote.status.toUpperCase() !== 'ACCEPTED' && quote.status.toUpperCase() !== 'REJECTED' && (
