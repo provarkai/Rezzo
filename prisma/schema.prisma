@@ -90,10 +90,14 @@ model Case {
   priority        String   @default("NORMAL")
   location        String?
   state           String?
-  routeJson       Json?    
+  routeJson       Json?
   riskLevel       String   @default("NORMAL") // NORMAL, ELEVATED, HIGH
-  resolutionCriteria Json?  
+  resolutionCriteria Json?
   resolvedAt      DateTime?
+  // Trust/Payment Protection/Anti-Bypass upgrade (PRD Upgrade §14)
+  protectionStatus     String  @default("NONE") // NONE, ELIGIBLE, PROTECTED
+  protectionEligible   Boolean @default(false)
+  transactionMode      String  @default("ON_PLATFORM") // ON_PLATFORM, OFF_PLATFORM_SUSPECTED, OFF_PLATFORM_CONFIRMED
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -112,6 +116,10 @@ model Case {
   disputes          Dispute[]
   aiJobs            AiJob[]
   notifications     Notification[]
+  communicationEvents CommunicationEvent[]
+  bypassSignals       BypassSignal[]
+  protectionBenefits  ProtectionBenefit[]
+  followUps           FollowUp[]
 }
 
 model CaseEvent {
@@ -151,6 +159,9 @@ model Professional {
   availabilityStatus String @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
   trustScore       Float    @default(0)
   verificationStatus String @default("PENDING") // PENDING, NEEDS_INFO, VERIFIED, TRUSTED, EXPERT, SUSPENDED, REVOKED
+  // Trust Score upgrade (PRD Upgrade §13): on-platform performance signals,
+  // separate from the verification-based trustScore above.
+  platformPerformanceMetrics Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -294,6 +305,7 @@ model Payment {
   case    Case     @relation(fields: [caseId], references: [id])
   quote   Quote?   @relation(fields: [quoteId], references: [id])
   payouts Payout[]
+  commissionEntries CommissionEntry[]
 }
 
 model Payout {
@@ -506,8 +518,85 @@ model Subscription {
   userId    String
   plan      String   @default("FREE")
   status    String   @default("ACTIVE")
+  entitlements Json? // PRD Upgrade §12: plan-specific benefits, e.g. { priorityRouting: true, vaultReminders: true }
   startedAt DateTime @default(now())
   expiresAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ TRUST / PAYMENT PROTECTION / ANTI-BYPASS (PRD Upgrade) ============
+// Additive schema for the V1 PRD Upgrade: Case Continuity, Payment
+// Protection, Trust Layer, Controlled Communication and Anti-Bypass
+// Detection. See REZZO_V1_PRD_Upgrade_Trust_Payment_Protection_Anti_Bypass
+// §14 "Data/API Additions". Fields above on Case/Professional/Subscription/
+// Payment are part of the same upgrade.
+
+model CommunicationEvent {
+  id         String   @id @default(cuid())
+  caseId     String
+  actorType  String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, AI_SYSTEM
+  actorId    String?
+  channel    String   @default("APP") // APP, WHATSAPP, EMAIL, SMS
+  riskSignal String?  // null when normal; short label when the Trust & Transaction Protection agent flags something
+  messageId  String?  // optional pointer to the originating Message
+  createdAt  DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model BypassSignal {
+  id          String   @id @default(cuid())
+  caseId      String
+  actorId     String?
+  signalType  String   // DIRECT_PAYMENT_DETAILS, OFF_PLATFORM_REQUEST, REPEATED_CONTACT_REQUEST, POST_ACCEPT_CANCELLATION, OTHER
+  severity    String   @default("LOW") // LOW (reminder), MEDIUM (warning), HIGH (ops review), CONFIRMED (enforcement) — mirrors the §6.2 progressive intervention levels 1-4
+  evidenceRef String?  // pointer to the CommunicationEvent/Message/etc. that triggered this signal
+  status      String   @default("OPEN") // OPEN, REVIEWED, DISMISSED, ACTION_TAKEN
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model ProtectionBenefit {
+  id         String   @id @default(cuid())
+  caseId     String
+  benefitType String  // PAYMENT_RECORD, PROOF_RECORD, DISPUTE_PATH, VERIFIED_PROFESSIONAL, CASE_HISTORY, SUPPORT, FOLLOW_UP
+  eligible   Boolean  @default(false)
+  status     String   @default("INACTIVE") // INACTIVE, ACTIVE, USED, EXPIRED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model FollowUp {
+  id          String    @id @default(cuid())
+  caseId      String
+  triggerType String    // MAINTENANCE_REMINDER, WARRANTY_CHECK, DOCUMENTATION_ROUTE, TAX_COMPLIANCE_ROUTE, REPEAT_SERVICE, OTHER
+  dueAt       DateTime?
+  status      String    @default("PENDING") // PENDING, SENT, DISMISSED, COMPLETED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model CommissionEntry {
+  id               String   @id @default(cuid())
+  paymentId        String
+  baseAmount       Float
+  rate             Float
+  commissionAmount Float
+  reversalStatus   String   @default("NONE") // NONE, PARTIALLY_REVERSED, FULLY_REVERSED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+  @@index([paymentId])
 }

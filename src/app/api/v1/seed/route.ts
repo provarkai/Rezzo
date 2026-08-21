@@ -23,8 +23,9 @@ export async function POST(request: NextRequest) {
     const clearTables = [
       'auditLog', 'notification', 'aiToolCall', 'aiJob', 'dispute', 'review',
       'message', 'documentPermission', 'document', 'proofItem', 'milestone',
-      'payout', 'payment', 'booking', 'quote', 'servicePrice', 'service',
+      'commissionEntry', 'payout', 'payment', 'booking', 'quote', 'servicePrice', 'service',
       'verificationReview', 'professionalSkill', 'professionalCredential',
+      'followUp', 'protectionBenefit', 'bypassSignal', 'communicationEvent',
       'professional', 'caseParticipant', 'caseEvent', 'case', 'matter', 'need',
       'profile', 'subscription', 'user', 'knowledgeSource',
     ];
