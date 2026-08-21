@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { confirmPayment, processPayout } from '@/lib/domain/payment-engine';
@@ -17,6 +18,26 @@ export async function POST(
     if (isAuthError(auth)) return auth.response;
 
     const { id } = await params;
+
+    // This stands in for the payment provider's webhook telling us the
+    // customer's money has actually moved. Only the customer who owns the
+    // case (or an admin) may trigger that — not just any authenticated user
+    // who knows the payment ID, which would otherwise let anyone fund and
+    // trigger payout on someone else's payment.
+    const payment = await db.payment.findUnique({
+      where: { id },
+      select: { case: { select: { userId: true } } },
+    });
+    if (!payment) {
+      return NextResponse.json(errorResponse('NOT_FOUND', 'Payment not found'), { status: 404 });
+    }
+    if (payment.case.userId !== auth.user.id && auth.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        errorResponse('FORBIDDEN', 'Only the case owner can confirm this payment'),
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = confirmSchema.safeParse(body);
 
