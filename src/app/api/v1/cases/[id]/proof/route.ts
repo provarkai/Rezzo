@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, CASE_EVENTS } from '@/lib/domain/constants';
 import { submitProof, addCaseEvent, transitionCase } from '@/lib/domain/case-engine';
+import { notify } from '@/lib/domain/notification-service';
 import { z } from 'zod';
 
 const proofSchema = z.object({
@@ -48,6 +50,21 @@ export async function POST(
       await transitionCase(id, 'CUSTOMER_REVIEW', auth.user.id, 'PROFESSIONAL');
     } catch {
       // May not be ready yet
+    }
+
+    try {
+      const caseRecord = await db.case.findUnique({ where: { id }, select: { userId: true, caseNumber: true } });
+      if (caseRecord) {
+        await notify({
+          userId: caseRecord.userId,
+          caseId: id,
+          type: 'PROOF_SUBMITTED',
+          title: `Proof submitted for ${caseRecord.caseNumber}`,
+          body: 'The professional submitted evidence of completed work. Please review it.',
+        });
+      }
+    } catch {
+      // Notification is best-effort
     }
 
     return NextResponse.json(successResponse({ proofItems }), { status: 201 });

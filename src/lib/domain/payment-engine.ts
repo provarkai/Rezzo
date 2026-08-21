@@ -14,6 +14,7 @@ import {
   PROTECTION_BENEFIT_STATUSES,
 } from './constants';
 import { transitionCase, addCaseEvent } from './case-engine';
+import { notify } from './notification-service';
 
 // ============ TYPES ============
 
@@ -179,6 +180,27 @@ export async function confirmPayment(
       protectionStatus: PROTECTION_STATUSES.PROTECTED,
     }
   );
+
+  try {
+    await notify({
+      userId: payment.case.userId,
+      caseId: payment.caseId,
+      type: 'PAYMENT_CONFIRMED',
+      title: `Payment confirmed for ${payment.case.caseNumber}`,
+      body: 'Your payment is funded and protected. The professional can now begin work.',
+    });
+    if (payment.quote?.professional?.userId) {
+      await notify({
+        userId: payment.quote.professional.userId,
+        caseId: payment.caseId,
+        type: 'PAYMENT_CONFIRMED',
+        title: `Payment funded — ${payment.case.caseNumber}`,
+        body: 'The customer\'s payment is confirmed. You can begin work.',
+      });
+    }
+  } catch {
+    // Notification is best-effort
+  }
 
   return funded;
 }

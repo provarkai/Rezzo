@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, CASE_EVENTS } from '@/lib/domain/constants';
 import { addCaseEvent, addParticipant, transitionCase } from '@/lib/domain/case-engine';
+import { notify } from '@/lib/domain/notification-service';
 import { z } from 'zod';
 
 const quoteSchema = z.object({
@@ -115,6 +116,18 @@ export async function POST(
       await transitionCase(id, 'QUOTE', caseRecord.userId, 'PROFESSIONAL');
     } catch {
       // May already be in QUOTE state
+    }
+
+    try {
+      await notify({
+        userId: caseRecord.userId,
+        caseId: id,
+        type: 'QUOTE_RECEIVED',
+        title: `New quote for ${caseRecord.caseNumber}`,
+        body: `A professional sent a quote for ${quote.totalAmount.toLocaleString('en-NG')} NGN.`,
+      });
+    } catch {
+      // Notification is best-effort; the quote itself already succeeded
     }
 
     return NextResponse.json(successResponse({ quote }), { status: 201 });

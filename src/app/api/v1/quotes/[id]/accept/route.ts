@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, CASE_EVENTS } from '@/lib/domain/constants';
 import { transitionCase, addCaseEvent, addParticipant } from '@/lib/domain/case-engine';
+import { notify } from '@/lib/domain/notification-service';
 
 export async function POST(
   request: NextRequest,
@@ -68,6 +69,18 @@ export async function POST(
       canSubmitProof: true,
       canStartService: true,
     });
+
+    try {
+      await notify({
+        userId: quote.professional.userId,
+        caseId: quote.caseId,
+        type: 'QUOTE_ACCEPTED',
+        title: `Your quote was accepted — ${quote.case.caseNumber}`,
+        body: 'The customer accepted your quote. You can begin work once payment is funded.',
+      });
+    } catch {
+      // Notification is best-effort
+    }
 
     return NextResponse.json(successResponse({ quote: updatedQuote }));
   } catch (error) {

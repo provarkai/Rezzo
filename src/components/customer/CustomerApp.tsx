@@ -6,6 +6,7 @@ import { CaseList } from './CaseList'
 import { VaultView } from './VaultView'
 import { CustomerProfile } from './CustomerProfile'
 import { CaseWorkspace } from './CaseWorkspace'
+import { NotificationBell } from '@/components/rezzo/NotificationBell'
 import { Home, Shield, Folder, User } from 'lucide-react'
 
 const TABS = [
@@ -38,8 +39,9 @@ export function CustomerApp() {
             </div>
             <span className="font-bold text-[#102A43] text-lg tracking-tight">REZZO</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Hi, {firstName}</span>
+            <NotificationBell />
           </div>
         </div>
       </header>

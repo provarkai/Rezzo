@@ -8,6 +8,7 @@ import { ProfessionalCaseDetail } from './ProfessionalCaseDetail'
 import { ProfessionalEarnings } from './ProfessionalEarnings'
 import { ProfessionalServices } from './ProfessionalServices'
 import { ProfessionalTrust } from './ProfessionalTrust'
+import { NotificationBell } from '@/components/rezzo/NotificationBell'
 import {
   LayoutDashboard,
   Briefcase,
@@ -31,6 +32,7 @@ export function ProfessionalApp() {
   const professionalTab = useRezzoStore((s) => s.professionalTab)
   const setProfessionalTab = useRezzoStore((s) => s.setProfessionalTab)
   const proSelectedCaseId = useRezzoStore((s) => s.proSelectedCaseId)
+  const setProSelectedCaseId = useRezzoStore((s) => s.setProSelectedCaseId)
   const currentUser = useRezzoStore((s) => s.currentUser)
 
   const firstName = currentUser?.name?.split(' ')[0] || 'Professional'
@@ -102,9 +104,12 @@ export function ProfessionalApp() {
               </div>
               <span className="font-bold text-[#102A43] text-lg tracking-tight">REZZO</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <BadgeCheck className="size-4 text-rezzo-gold" />
-              <span className="text-sm text-muted-foreground">{firstName}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <BadgeCheck className="size-4 text-rezzo-gold" />
+                <span className="text-sm text-muted-foreground">{firstName}</span>
+              </div>
+              <NotificationBell onSelectCase={setProSelectedCaseId} />
             </div>
           </div>
         </header>
@@ -121,6 +126,7 @@ export function ProfessionalApp() {
               <BadgeCheck className="size-4 text-rezzo-gold" />
               <span className="text-sm font-medium text-[#102A43]">{currentUser?.name || 'Professional'}</span>
             </div>
+            <NotificationBell onSelectCase={setProSelectedCaseId} />
           </div>
         </header>
 

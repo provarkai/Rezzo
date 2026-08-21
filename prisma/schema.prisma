@@ -474,11 +474,13 @@ model Notification {
   channel     String   @default("PUSH")
   type        String
   status      String   @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
-  payloadJson Json?    
+  payloadJson Json?
+  readAt      DateTime?
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
   case Case? @relation(fields: [caseId], references: [id])
+  @@index([userId, readAt])
 }
 
 // ============ KNOWLEDGE / GOVERNMENT ============
