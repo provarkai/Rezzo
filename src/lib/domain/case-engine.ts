@@ -9,6 +9,10 @@ import {
   ROLES,
   isValidTransition,
   generateCaseNumber,
+  FOLLOWUP_TRIGGER_TYPES,
+  FOLLOWUP_STATUSES,
+  PROTECTION_BENEFIT_TYPES,
+  PROTECTION_BENEFIT_STATUSES,
   type CaseState,
   type CaseEventType,
 } from './constants';
@@ -163,7 +167,65 @@ export async function transitionCase(
     });
   }
 
+  if (newState === CASE_STATES.RESOLVED) {
+    await scheduleFollowUp(caseId, updated.routeJson);
+  }
+
   return updated;
+}
+
+// ============ CASE CONTINUITY: FOLLOW-UP SCHEDULING ============
+
+// PRD Upgrade §11 "Case Continuity": what a resolved case's vertical
+// suggests as the next relevant action, and roughly how soon it's worth
+// surfacing. These are V1 defaults, not policy — tune once real usage data
+// exists.
+const VERTICAL_FOLLOWUP_TYPE: Record<string, string> = {
+  HOME_TECHNICAL: FOLLOWUP_TRIGGER_TYPES.MAINTENANCE_REMINDER,
+  PROPERTY_HOUSING: FOLLOWUP_TRIGGER_TYPES.DOCUMENTATION_ROUTE,
+  BUSINESS_ENTERPRISE: FOLLOWUP_TRIGGER_TYPES.TAX_COMPLIANCE_ROUTE,
+};
+
+const FOLLOWUP_DUE_DAYS: Record<string, number> = {
+  [FOLLOWUP_TRIGGER_TYPES.MAINTENANCE_REMINDER]: 90,
+  [FOLLOWUP_TRIGGER_TYPES.DOCUMENTATION_ROUTE]: 30,
+  [FOLLOWUP_TRIGGER_TYPES.TAX_COMPLIANCE_ROUTE]: 30,
+  [FOLLOWUP_TRIGGER_TYPES.REPEAT_SERVICE]: 180,
+};
+
+/**
+ * Schedule the resolved case's next-need follow-up (§11) and, if the case
+ * was protected, flip its FOLLOW_UP ProtectionBenefit to ACTIVE. Idempotent
+ * per case: skips if a pending/sent follow-up already exists, so a case
+ * that gets disputed and re-resolved doesn't pile up duplicates.
+ */
+export async function scheduleFollowUp(caseId: string, routeJson: unknown) {
+  const existing = await db.followUp.findFirst({
+    where: { caseId, status: { in: [FOLLOWUP_STATUSES.PENDING, FOLLOWUP_STATUSES.SENT] } },
+  });
+  if (existing) return existing;
+
+  const vertical = ((routeJson as Record<string, unknown> | null)?.vertical as string) || '';
+  const triggerType = VERTICAL_FOLLOWUP_TYPE[vertical] || FOLLOWUP_TRIGGER_TYPES.REPEAT_SERVICE;
+  const dueInDays = FOLLOWUP_DUE_DAYS[triggerType] ?? 180;
+  const dueAt = new Date(Date.now() + dueInDays * 24 * 60 * 60 * 1000);
+
+  const followUp = await db.followUp.create({
+    data: { caseId, triggerType, dueAt, status: FOLLOWUP_STATUSES.PENDING },
+  });
+
+  await db.protectionBenefit.upsert({
+    where: { caseId_benefitType: { caseId, benefitType: PROTECTION_BENEFIT_TYPES.FOLLOW_UP } },
+    update: { eligible: true, status: PROTECTION_BENEFIT_STATUSES.ACTIVE },
+    create: {
+      caseId,
+      benefitType: PROTECTION_BENEFIT_TYPES.FOLLOW_UP,
+      eligible: true,
+      status: PROTECTION_BENEFIT_STATUSES.ACTIVE,
+    },
+  });
+
+  return followUp;
 }
 
 // ============ ADD CASE EVENT ============
