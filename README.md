@@ -30,6 +30,10 @@ Registration and login require a password (min. 8 characters) — there is no pa
 
 Without `PAYSTACK_SECRET_KEY` set, payments use a MOCK provider that self-confirms client-side — fine for demos, but nothing real ever moves. Set `PAYSTACK_SECRET_KEY` (a test key is enough for staging) to switch on real Paystack checkout: the customer is redirected to Paystack's hosted page, and confirmation happens only via Paystack's webhook, never a client click. Point the webhook at `POST /api/v1/payments/webhooks/paystack` in the Paystack dashboard (Settings → API Keys & Webhooks) for this to actually fire in a deployed environment — Paystack can't reach `localhost`, so local testing needs a tunnel (e.g. `ngrok http 3000`) with that URL registered instead.
 
+### WhatsApp
+
+Set all four `WHATSAPP_*` variables to turn on the adapter (§14.2: WhatsApp as an acquisition channel — a customer can text REZZO to start a Case with no prior signup). Point a Meta WhatsApp Cloud API app's webhook at `GET`/`POST /api/v1/webhooks/whatsapp` (same tunnel requirement as Paystack for local testing). Unlike the Paystack integration, this hasn't been exercised against a live number — no WhatsApp test credentials were available while building it, only Meta's documented request/webhook shapes to build against. Text messages create or continue a Case the same way the app's home screen composer does; voice notes and images are acknowledged but not processed (no speech-to-text or image pipeline exists in this codebase to hand them to).
+
 ## Scripts
 
 - `dev` — start the Next.js dev server
