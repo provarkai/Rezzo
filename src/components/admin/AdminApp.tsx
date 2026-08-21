@@ -6,13 +6,14 @@ import { AdminOverview } from './AdminOverview'
 import { AdminCaseQueue } from './AdminCaseQueue'
 import { AdminProfessionalQueue } from './AdminProfessionalQueue'
 import { AdminPayments } from './AdminPayments'
+import { AdminBypassSignals } from './AdminBypassSignals'
 import {
   LayoutDashboard,
   Briefcase,
   Users,
   AlertTriangle,
   CreditCard,
-  BrainCircuit,
+  ShieldAlert,
   BarChart3,
   Settings,
   BadgeCheck,
@@ -24,7 +25,7 @@ const SIDEBAR_ITEMS = [
   { id: 'professionals', label: 'Professionals', icon: Users },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle },
   { id: 'payments', label: 'Payments', icon: CreditCard },
-  { id: 'ai-oversight', label: 'AI Oversight', icon: BrainCircuit },
+  { id: 'ai-oversight', label: 'Trust & Protection', icon: ShieldAlert },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const
@@ -123,7 +124,7 @@ export function AdminApp() {
             {adminTab === 'professionals' && <AdminProfessionalQueue />}
             {adminTab === 'disputes' && <AdminDisputesPlaceholder />}
             {adminTab === 'payments' && <AdminPayments />}
-            {adminTab === 'ai-oversight' && <AdminAIOversightPlaceholder />}
+            {adminTab === 'ai-oversight' && <AdminBypassSignals />}
             {adminTab === 'analytics' && <AdminOverview />}
             {adminTab === 'settings' && <AdminSettingsPlaceholder />}
           </div>
@@ -163,18 +164,6 @@ function AdminDisputesPlaceholder() {
       <h2 className="text-sm font-semibold text-[#102A43] mb-1">Disputes Management</h2>
       <p className="text-xs text-muted-foreground max-w-xs">
         Disputed cases will appear here for review and resolution. No active disputes at this time.
-      </p>
-    </div>
-  )
-}
-
-function AdminAIOversightPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <BrainCircuit className="size-10 text-muted-foreground/30 mb-3" />
-      <h2 className="text-sm font-semibold text-[#102A43] mb-1">AI Oversight</h2>
-      <p className="text-xs text-muted-foreground max-w-xs">
-        Monitor AI decision quality, routing accuracy, and orchestration performance. Coming in V2.
       </p>
     </div>
   )
