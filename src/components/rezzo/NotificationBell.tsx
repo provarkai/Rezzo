@@ -91,9 +91,9 @@ export function NotificationBell({ onSelectCase }: NotificationBellProps = {}) {
         className="relative p-1.5 rounded-lg hover:bg-muted transition-colors"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
       >
-        <Bell className="size-5 text-[#52606D]" />
+        <Bell className="size-5 text-muted-foreground" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#C23B3B] text-white text-[10px] font-semibold flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rezzo-danger text-white text-[10px] font-semibold flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -120,15 +120,15 @@ export function NotificationBell({ onSelectCase }: NotificationBellProps = {}) {
                     key={n.id}
                     onClick={() => handleSelect(n)}
                     className={`text-left p-3 rounded-lg transition-colors ${
-                      n.readAt ? 'bg-transparent hover:bg-muted/60' : 'bg-[#1F7A5A]/5 hover:bg-[#1F7A5A]/10'
+                      n.readAt ? 'bg-transparent hover:bg-muted/60' : 'bg-rezzo-green/5 hover:bg-rezzo-green/10'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-[#102A43] leading-snug">
+                      <p className="text-sm font-medium text-rezzo-navy leading-snug">
                         {n.payloadJson?.title || 'Update on your case'}
                       </p>
                       {!n.readAt && (
-                        <span className="w-2 h-2 rounded-full bg-[#1F7A5A] shrink-0 mt-1.5" />
+                        <span className="w-2 h-2 rounded-full bg-rezzo-green shrink-0 mt-1.5" />
                       )}
                     </div>
                     {n.payloadJson?.body && (

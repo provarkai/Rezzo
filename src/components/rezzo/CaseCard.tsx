@@ -26,10 +26,10 @@ export function CaseCard({ caseNumber, status, title, date, protectionStatus, on
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold text-[#102A43]">{caseNumber}</span>
+            <span className="text-sm font-semibold text-rezzo-navy">{caseNumber}</span>
             <StatusBadge status={status} />
             {protectionStatus === 'PROTECTED' && (
-              <Shield className="size-3.5 text-[#1F7A5A] shrink-0" aria-label="REZZO Protected" />
+              <Shield className="size-3.5 text-rezzo-green shrink-0" aria-label="REZZO Protected" />
             )}
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2">{title}</p>

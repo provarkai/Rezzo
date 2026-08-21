@@ -52,7 +52,31 @@
 
 :root {
   --radius: 0.5rem;
-  /* REZZO Brand Colors */
+  /* ============================================================
+     REZZO Design Tokens
+     ============================================================
+     This layer (and the matching `--color-rezzo-*` entries in the
+     `@theme inline` block above, which is what makes `bg-rezzo-navy`,
+     `text-rezzo-green` etc. work as real Tailwind utility classes) has
+     existed since the original transfer, but adoption stalled: `-green`,
+     `-gold` and `-danger` got used in a few dozen places, while
+     `rezzo-navy` — the single most-used brand color in the app — was
+     defined here and then never once referenced as a class anywhere;
+     every navy usage was written as raw `bg-[#102A43]`/`text-[#102A43]`
+     instead (496 raw hex occurrences across the app in total, most of
+     them navy). `-navy-dark`, `-navy-soft` and `-warning` are similarly
+     defined but effectively unused (a few `-navy-soft` hits as raw hex,
+     `-navy-dark`/`-warning` not even that).
+
+     This pass fixed the shared src/components/rezzo/* primitives (the
+     small components every case list/card renders through) to use these
+     tokens — the rest of the app's ~30 page-level components still use
+     raw hex, and weren't mechanically find-replaced here: doing that
+     across every file with no browser available in this sandbox to
+     visually confirm nothing broke felt like the wrong trade. Adopting
+     `bg-rezzo-navy`/`text-rezzo-navy` (and retiring the raw `[#102A43]`
+     arbitrary values) anywhere they appear is safe to do incrementally —
+     the token already resolves to the exact same color. */
   --rezzo-navy: #102A43;
   --rezzo-navy-dark: #071A2B;
   --rezzo-navy-soft: #EAF1F8;
