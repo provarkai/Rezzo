@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { handleInboundWhatsAppMessage } from '@/lib/domain/whatsapp-service';
 import {
   verifyWhatsAppSignature,
-  handleInboundWhatsAppMessage,
   sendWhatsAppMessage,
   isWhatsAppConfigured,
-} from '@/lib/domain/whatsapp-service';
+} from '@/lib/domain/messaging-providers/whatsapp';
 
 // Meta's one-time webhook verification handshake — it calls this with the
 // verify token you set on the app dashboard; echo back hub.challenge

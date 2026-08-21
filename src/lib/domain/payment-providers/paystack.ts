@@ -74,8 +74,14 @@ export async function initializePaystackTransaction(params: {
  * different string and silently fail verification.
  */
 export function verifyPaystackSignature(rawBody: string, signature: string | null): boolean {
-  if (!signature) return false;
-  const expected = crypto.createHmac('sha512', getSecretKey()).update(rawBody).digest('hex');
+  // Checked directly rather than via getSecretKey(), which throws — an
+  // unconfigured key should make every webhook request fail closed (401),
+  // not 500. This route call isn't wrapped in try/catch, so a throw here
+  // used to turn "not configured" into an unhandled exception instead of
+  // the clean rejection every other invalid-signature case gets.
+  const secretKey = process.env.PAYSTACK_SECRET_KEY;
+  if (!signature || !secretKey) return false;
+  const expected = crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
   const expectedBuf = Buffer.from(expected, 'utf8');
   const signatureBuf = Buffer.from(signature, 'utf8');
   if (expectedBuf.length !== signatureBuf.length) return false;
