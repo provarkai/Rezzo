@@ -121,6 +121,10 @@ export function ProfessionalCaseDetail() {
   const [sendingMessage, setSendingMessage] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Documents shared into this case (REZZO Vault, PRD §13.2)
+  const [caseDocuments, setCaseDocuments] = useState<Array<{ id: string; name: string | null; type: string | null }>>([])
+  const [viewingDocId, setViewingDocId] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     if (!caseId) return
     try {
@@ -168,8 +172,33 @@ export function ProfessionalCaseDetail() {
   }, [fetchData])
 
   useEffect(() => {
+    if (!caseId) return
+    apiGet<{ documents?: Array<{ id: string; name: string | null; type: string | null }> }>(`/cases/${caseId}/documents`)
+      .then((data) => setCaseDocuments(data.documents || []))
+      .catch(() => setCaseDocuments([]))
+  }, [caseId])
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const handleViewDocument = async (docId: string) => {
+    try {
+      setViewingDocId(docId)
+      const data = await apiGet<{ document: { storageKey?: string } }>(`/documents/${docId}`)
+      if (data.document?.storageKey) {
+        const a = document.createElement('a')
+        a.href = data.document.storageKey
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        a.click()
+      }
+    } catch (err) {
+      // Viewing failed silently, same as the other handlers in this file
+    } finally {
+      setViewingDocId(null)
+    }
+  }
 
   const handleSendQuote = async () => {
     if (!caseId || !quoteScope.trim()) return
@@ -411,6 +440,33 @@ export function ProfessionalCaseDetail() {
               </Card>
             )
           })()}
+
+          {/* Shared Documents — REZZO Vault (PRD §13.2) */}
+          {caseDocuments.length > 0 && (
+            <Card className="p-4 md:p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="size-4 text-[#1F7A5A]" />
+                <h2 className="text-sm font-semibold text-[#102A43]">Shared Documents</h2>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {caseDocuments.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => handleViewDocument(doc.id)}
+                    disabled={viewingDocId === doc.id}
+                    className="flex items-center justify-between p-2.5 rounded-lg border border-border/60 hover:bg-muted/50 text-left"
+                  >
+                    <span className="text-sm text-foreground truncate">{doc.name || 'Untitled document'}</span>
+                    {viewingDocId === doc.id ? (
+                      <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground shrink-0">View</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Quote Builder */}
           {showQuoteBuilder && (

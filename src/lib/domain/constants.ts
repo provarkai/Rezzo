@@ -184,6 +184,16 @@ export const DISPUTE_OUTCOMES = {
   DISMISSED: 'DISMISSED',
 } as const;
 
+// REZZO Vault categories (PRD §13.1) — used as Document.type, since that
+// field isn't a real FK, just a free-string bucket.
+export const DOCUMENT_CATEGORIES = {
+  IDENTITY: 'IDENTITY',
+  PROPERTY: 'PROPERTY',
+  GOVERNMENT: 'GOVERNMENT',
+  BUSINESS: 'BUSINESS',
+  OTHER: 'OTHER',
+} as const;
+
 export const KNOWLEDGE_AUTHORITY_LEVELS = {
   A: 'A', // Official
   B: 'B', // Approved professional
