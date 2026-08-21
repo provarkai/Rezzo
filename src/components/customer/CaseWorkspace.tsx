@@ -372,12 +372,23 @@ export function CaseWorkspace() {
   const handlePay = async (quoteId: string) => {
     setActionLoading('payment')
     try {
-      const payment = await apiPost<{ id: string; paymentIntentId?: string }>(
+      // The intent lives under `.payment`, not flat on the response — this
+      // was previously read as `payment.id`, which is always undefined and
+      // sent every confirm call to `/payments/undefined/confirm` (a 404).
+      const result = await apiPost<{ payment: { id: string }; authorizationUrl?: string }>(
         `/cases/${caseId}/payment-intent`,
         { quoteId }
       )
-      // Auto-confirm (simulating webhook)
-      await apiPost(`/payments/${payment.id}/confirm`)
+      if (result.authorizationUrl) {
+        // A live provider is configured — hand off to its hosted checkout.
+        // Confirmation happens server-side via its webhook, never from a
+        // client click, so there's nothing left to do here but redirect.
+        window.location.href = result.authorizationUrl
+        return
+      }
+      // No live provider configured — MOCK self-confirms so demo accounts
+      // and local dev keep working without a payment provider key.
+      await apiPost(`/payments/${result.payment.id}/confirm`)
       toast.success('Payment successful!')
       await refreshAll()
     } catch (err) {

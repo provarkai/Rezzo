@@ -15,6 +15,7 @@ import {
 } from './constants';
 import { transitionCase, addCaseEvent } from './case-engine';
 import { notify } from './notification-service';
+import { isPaystackConfigured, initializePaystackTransaction } from './payment-providers/paystack';
 
 // ============ TYPES ============
 
@@ -23,6 +24,9 @@ export interface PaymentIntentResult {
   grossAmount: number;
   commissionAmount: number;
   netAmount: number;
+  // Only set when a live provider (Paystack) is configured — the caller
+  // should redirect the customer there instead of self-confirming.
+  authorizationUrl?: string;
 }
 
 // ============ CREATE PAYMENT INTENT ============
@@ -47,12 +51,39 @@ export async function createPaymentIntent(
 
   const idempotencyKey = `pay_${caseId}_${quoteId}_${Date.now()}`;
 
+  // When a live provider is configured, start a real transaction and use
+  // its reference as our own — confirmPayment() only ever runs from that
+  // provider's signature-verified webhook from here on (see
+  // POST /payments/webhooks/paystack), never from a client click. Without a
+  // key, provider stays MOCK and the existing client-confirm demo flow
+  // (POST /payments/[id]/confirm) still works unchanged.
+  let provider = 'MOCK';
+  let providerReference: string | null = null;
+  let authorizationUrl: string | undefined;
+
+  if (isPaystackConfigured()) {
+    const customer = await db.user.findUnique({ where: { id: caseRecord.userId } });
+    if (!customer?.email) {
+      throw new Error('A verified email is required to pay with Paystack — add one to your profile first');
+    }
+    const init = await initializePaystackTransaction({
+      email: customer.email,
+      amountNaira: grossAmount,
+      reference: idempotencyKey,
+      metadata: { caseId, quoteId },
+    });
+    provider = 'PAYSTACK';
+    providerReference = init.reference;
+    authorizationUrl = init.authorizationUrl;
+  }
+
   // Create payment record
   const payment = await db.payment.create({
     data: {
       caseId,
       quoteId,
-      provider: 'MOCK',
+      provider,
+      providerReference,
       grossAmount,
       commissionAmount,
       netAmount,
@@ -81,6 +112,7 @@ export async function createPaymentIntent(
       commissionAmount,
       netAmount,
       currency: CURRENCY,
+      provider,
     }
   );
 
@@ -89,6 +121,7 @@ export async function createPaymentIntent(
     grossAmount,
     commissionAmount,
     netAmount,
+    authorizationUrl,
   };
 }
 

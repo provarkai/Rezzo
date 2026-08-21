@@ -26,7 +26,7 @@ export async function POST(
     // trigger payout on someone else's payment.
     const payment = await db.payment.findUnique({
       where: { id },
-      select: { case: { select: { userId: true } } },
+      select: { provider: true, case: { select: { userId: true } } },
     });
     if (!payment) {
       return NextResponse.json(errorResponse('NOT_FOUND', 'Payment not found'), { status: 404 });
@@ -35,6 +35,16 @@ export async function POST(
       return NextResponse.json(
         errorResponse('FORBIDDEN', 'Only the case owner can confirm this payment'),
         { status: 403 }
+      );
+    }
+    // A real provider confirms itself via its own signature-verified
+    // webhook (POST /payments/webhooks/paystack) — this endpoint only
+    // exists for MOCK's client-driven demo flow. A logged-in user calling
+    // this on a live payment can't be trusted the way a signed webhook can.
+    if (payment.provider !== 'MOCK') {
+      return NextResponse.json(
+        errorResponse('CONFLICT', 'This payment is confirmed automatically by the payment provider'),
+        { status: 409 }
       );
     }
 
