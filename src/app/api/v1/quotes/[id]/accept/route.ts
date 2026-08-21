@@ -4,6 +4,7 @@ import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, CASE_EVENTS } from '@/lib/domain/constants';
 import { transitionCase, addCaseEvent, addParticipant } from '@/lib/domain/case-engine';
 import { notify } from '@/lib/domain/notification-service';
+import { trackEvent } from '@/lib/analytics';
 
 export async function POST(
   request: NextRequest,
@@ -81,6 +82,12 @@ export async function POST(
     } catch {
       // Notification is best-effort
     }
+
+    trackEvent({
+      event: 'quote_accepted',
+      distinctId: auth.user.id,
+      properties: { caseId: quote.caseId, quoteId: quote.id, amount: quote.totalAmount },
+    }).catch(() => {});
 
     return NextResponse.json(successResponse({ quote: updatedQuote }));
   } catch (error) {

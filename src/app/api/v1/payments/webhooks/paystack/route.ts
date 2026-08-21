@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { confirmPayment, processPayout } from '@/lib/domain/payment-engine';
 import { verifyPaystackSignature } from '@/lib/domain/payment-providers/paystack';
+import { logger } from '@/lib/logger';
 
 // Paystack calls this directly — no REZZO auth token, no logged-in user.
 // Trust is established entirely by the HMAC signature on the raw body, so
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
     const paidKobo = Number(event.data?.amount ?? 0);
     const expectedKobo = Math.round(payment.grossAmount * 100);
     if (paidKobo !== expectedKobo) {
+      logger.warn('Paystack webhook amount mismatch', { paymentId: payment.id, reference, expectedKobo, paidKobo });
       return NextResponse.json(
         errorResponse('VALIDATION_ERROR', `Amount mismatch: expected ${expectedKobo} kobo, got ${paidKobo}`),
         { status: 400 }
@@ -64,12 +66,15 @@ export async function POST(request: NextRequest) {
 
     try {
       await processPayout(payment.id);
-    } catch {
-      // Payout processing is async, continue
+    } catch (err) {
+      // Payout processing is async, continue — but a payment stuck FUNDED
+      // with no payout is worth knowing about, not silently dropping.
+      logger.warn('Payout processing failed after Paystack confirm', { paymentId: payment.id, error: err });
     }
 
     return NextResponse.json(successResponse({ payment: funded }));
   } catch (error) {
+    logger.error('Paystack webhook processing failed', { error });
     const message = error instanceof Error ? error.message : 'Internal server error';
     // 500 so Paystack retries — this branch means something on our side
     // failed, not that the webhook itself was bad.

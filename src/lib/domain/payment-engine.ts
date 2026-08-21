@@ -19,6 +19,7 @@ import {
 import { transitionCase, addCaseEvent } from './case-engine';
 import { notify } from './notification-service';
 import { isPaystackConfigured, initializePaystackTransaction } from './payment-providers/paystack';
+import { trackEvent } from '@/lib/analytics';
 
 // ============ TYPES ============
 
@@ -237,6 +238,12 @@ export async function confirmPayment(
   } catch {
     // Notification is best-effort
   }
+
+  trackEvent({
+    event: 'payment_confirmed',
+    distinctId: payment.case.userId,
+    properties: { caseId: payment.caseId, paymentId: payment.id, grossAmount: payment.grossAmount, provider: payment.provider },
+  }).catch(() => {});
 
   return funded;
 }

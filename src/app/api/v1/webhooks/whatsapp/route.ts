@@ -5,6 +5,7 @@ import {
   sendWhatsAppMessage,
   isWhatsAppConfigured,
 } from '@/lib/domain/messaging-providers/whatsapp';
+import { logger } from '@/lib/logger';
 
 // Meta's one-time webhook verification handshake — it calls this with the
 // verify token you set on the app dashboard; echo back hub.challenge
@@ -71,12 +72,14 @@ export async function POST(request: NextRequest) {
         if (isWhatsAppConfigured()) {
           try {
             await sendWhatsAppMessage(msg.from, replyText);
-          } catch {
+          } catch (err) {
             // Reply is best-effort — sending failed, but the case stands.
+            logger.warn('WhatsApp reply send failed', { error: err });
           }
         }
-      } catch {
+      } catch (err) {
         // One malformed message shouldn't drop the rest of the batch.
+        logger.error('WhatsApp inbound message processing failed', { error: err });
       }
     }
 

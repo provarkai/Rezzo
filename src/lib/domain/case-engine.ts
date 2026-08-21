@@ -18,6 +18,7 @@ import {
   type CaseEventType,
 } from './constants';
 import { scanMessageForBypassSignals } from './bypass-detection';
+import { trackEvent } from '@/lib/analytics';
 
 // ============ TYPES ============
 
@@ -685,6 +686,12 @@ export async function customerApproveResolution(
     where: { id: caseId },
     data: { resolvedAt: new Date() },
   });
+
+  trackEvent({
+    event: 'case_resolved',
+    distinctId: customerId,
+    properties: { caseId },
+  }).catch(() => {});
 
   return db.case.findUnique({ where: { id: caseId } });
 }

@@ -3,6 +3,7 @@ import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { createCase, listUserCases } from '@/lib/domain/case-engine';
 import { orchestrateCase } from '@/lib/domain/ai-orchestrator';
+import { trackEvent } from '@/lib/analytics';
 import { z } from 'zod';
 
 const createCaseSchema = z.object({
@@ -35,6 +36,12 @@ export async function POST(request: NextRequest) {
 
     // Trigger AI orchestration in background (fire and forget for V1)
     orchestrateCase(caseRecord.id).catch(() => {});
+
+    trackEvent({
+      event: 'need_created',
+      distinctId: auth.user.id,
+      properties: { caseId: caseRecord.id, caseNumber: caseRecord.caseNumber, channel },
+    }).catch(() => {});
 
     return NextResponse.json(successResponse({ case: caseRecord }), { status: 201 });
   } catch (error) {

@@ -4,6 +4,7 @@ import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, ROLES } from '@/lib/domain/constants';
 import { openDispute } from '@/lib/domain/case-engine';
 import { notify } from '@/lib/domain/notification-service';
+import { trackEvent } from '@/lib/analytics';
 import { z } from 'zod';
 
 const disputeSchema = z.object({
@@ -64,6 +65,12 @@ export async function POST(
     } catch {
       // Notification is best-effort
     }
+
+    trackEvent({
+      event: 'dispute_opened',
+      distinctId: auth.user.id,
+      properties: { caseId: id, disputeId: dispute.id, openedByRole: actorType },
+    }).catch(() => {});
 
     return NextResponse.json(successResponse({ dispute }), { status: 201 });
   } catch (error) {

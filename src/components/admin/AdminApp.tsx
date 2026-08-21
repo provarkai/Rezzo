@@ -13,6 +13,7 @@ import { AdminTrustRules } from './AdminTrustRules'
 import { AdminKnowledge } from './AdminKnowledge'
 import { AdminAudit } from './AdminAudit'
 import { AdminSettings } from './AdminSettings'
+import { AdminAnalytics } from './AdminAnalytics'
 import {
   LayoutDashboard,
   Briefcase,
@@ -143,7 +144,7 @@ export function AdminApp() {
             {adminTab === 'trust-rules' && <AdminTrustRules />}
             {adminTab === 'knowledge' && <AdminKnowledge />}
             {adminTab === 'audit' && <AdminAudit />}
-            {adminTab === 'analytics' && <AdminOverview />}
+            {adminTab === 'analytics' && <AdminAnalytics />}
             {adminTab === 'settings' && <AdminSettings />}
           </div>
         </main>

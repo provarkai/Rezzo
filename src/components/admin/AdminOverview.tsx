@@ -71,15 +71,21 @@ export function AdminOverview() {
         c.status.toUpperCase() === 'DISPUTED'
       )
 
+      // These used to fall back to hardcoded demo numbers (₦450,000 GMV,
+      // ₦45,000 revenue, "48h", "3" new cases today) whenever /admin/
+      // analytics didn't return them — which was always, since that route
+      // never returned these flat fields at all. Now that it does, these
+      // `??` fallbacks are just for a failed fetch, so they default to an
+      // honest "nothing to show" rather than a fabricated-looking number.
       const result: AnalyticsData = {
         totalCases: analytics?.totalCases ?? totalCases,
         activeCases: analytics?.activeCases ?? activeCases,
-        gmv: analytics?.gmv ?? 450000,
-        revenue: analytics?.revenue ?? 45000,
+        gmv: analytics?.gmv ?? 0,
+        revenue: analytics?.revenue ?? 0,
         resolutionRate: analytics?.resolutionRate ?? (totalCases > 0 ? Math.round((resolvedCases / totalCases) * 100) : 0),
-        avgResolutionTime: analytics?.avgResolutionTime ?? '48h',
+        avgResolutionTime: analytics?.avgResolutionTime ?? '—',
         disputedCases: analytics?.disputedCases ?? disputedCases.length,
-        newCasesToday: analytics?.newCasesToday ?? 3,
+        newCasesToday: analytics?.newCasesToday ?? 0,
       }
 
       setData(result)
