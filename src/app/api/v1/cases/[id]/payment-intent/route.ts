@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { createPaymentIntent } from '@/lib/domain/payment-engine';
@@ -17,6 +18,21 @@ export async function POST(
     if (isAuthError(auth)) return auth.response;
 
     const { id } = await params;
+
+    // Only the case owner (the paying customer) or an admin can start a
+    // payment against this case — otherwise any logged-in user could create
+    // payment intents tied to someone else's case/quote by ID.
+    const caseRecord = await db.case.findUnique({ where: { id }, select: { userId: true } });
+    if (!caseRecord) {
+      return NextResponse.json(errorResponse('NOT_FOUND', 'Case not found'), { status: 404 });
+    }
+    if (caseRecord.userId !== auth.user.id && auth.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        errorResponse('FORBIDDEN', 'Only the case owner can start payment for this case'),
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = paymentIntentSchema.safeParse(body);
     if (!parsed.success) {
