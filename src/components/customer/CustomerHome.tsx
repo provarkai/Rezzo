@@ -18,6 +18,33 @@ interface CaseItem {
   createdAt: string
 }
 
+interface FollowUpItem {
+  id: string
+  triggerType: string
+  dueAt?: string | null
+  case?: { caseNumber?: string; need?: { title?: string } }
+}
+
+// PRD Upgrade §11 "Case Continuity" — friendly copy per trigger type.
+const FOLLOWUP_COPY: Record<string, { label: string; prompt: string }> = {
+  MAINTENANCE_REMINDER: { label: 'Due for a maintenance check?', prompt: 'I need a maintenance check on ' },
+  WARRANTY_CHECK: { label: 'Worth checking your warranty coverage', prompt: 'I want to check warranty coverage for ' },
+  DOCUMENTATION_ROUTE: { label: 'Related documentation may be due', prompt: 'I need help with documentation related to ' },
+  TAX_COMPLIANCE_ROUTE: { label: 'Tax/compliance may need attention', prompt: 'I need help with tax/compliance for ' },
+  REPEAT_SERVICE: { label: 'Need this done again?', prompt: 'I need this done again: ' },
+  OTHER: { label: 'REZZO has a suggestion for you', prompt: 'Following up on ' },
+}
+
+function dueLabel(dueAt?: string | null) {
+  if (!dueAt) return null
+  const diffDays = Math.round((new Date(dueAt).getTime() - Date.now()) / 86400000)
+  if (diffDays < 0) return 'Was due a while ago'
+  if (diffDays === 0) return 'Due today'
+  if (diffDays === 1) return 'Due tomorrow'
+  if (diffDays < 30) return `Due in ${diffDays} days`
+  return `Due ${new Date(dueAt).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' })}`
+}
+
 const ACTION_BUTTONS = [
   { icon: Mic, label: 'Tell', desc: 'Speak your need', color: 'bg-[#102A43] text-white' },
   { icon: Camera, label: 'Show', desc: 'Take a photo', color: 'bg-[#1F7A5A] text-white' },
@@ -44,6 +71,7 @@ export function CustomerHome() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [followUps, setFollowUps] = useState<FollowUpItem[]>([])
 
   const fetchCases = useCallback(async () => {
     try {
@@ -58,9 +86,33 @@ export function CustomerHome() {
     }
   }, [])
 
+  const fetchFollowUps = useCallback(async () => {
+    try {
+      const data = await apiGet<{ followUps: FollowUpItem[] }>('/follow-ups')
+      setFollowUps(data.followUps || [])
+    } catch {
+      // Follow-ups are a nice-to-have; fail silently rather than block the home screen
+    }
+  }, [])
+
   useEffect(() => {
     fetchCases()
-  }, [fetchCases])
+    fetchFollowUps()
+  }, [fetchCases, fetchFollowUps])
+
+  const handleFollowUpDismiss = async (id: string) => {
+    setFollowUps((prev) => prev.filter((f) => f.id !== id))
+    apiPost(`/follow-ups/${id}`, { status: 'DISMISSED' }).catch(() => {})
+  }
+
+  const handleFollowUpAct = async (f: FollowUpItem) => {
+    const copy = FOLLOWUP_COPY[f.triggerType] || FOLLOWUP_COPY.OTHER
+    const subject = f.case?.need?.title || f.case?.caseNumber || 'my earlier case'
+    setText(`${copy.prompt}${subject}`)
+    setFollowUps((prev) => prev.filter((x) => x.id !== f.id))
+    apiPost(`/follow-ups/${f.id}`, { status: 'COMPLETED' }).catch(() => {})
+    focusTextInput()
+  }
 
   const activeCases = cases.filter((c) => {
     const s = c.status.toUpperCase()
@@ -250,6 +302,53 @@ export function CustomerHome() {
           </div>
         )}
       </section>
+
+      {/* Follow-up reminders (PRD Upgrade §11 Case Continuity) */}
+      {followUps.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-[#102A43] mb-3">
+            Recommended for you
+          </h2>
+          <div className="flex flex-col gap-2">
+            {followUps.map((f) => {
+              const copy = FOLLOWUP_COPY[f.triggerType] || FOLLOWUP_COPY.OTHER
+              const due = dueLabel(f.dueAt)
+              return (
+                <div
+                  key={f.id}
+                  className="p-3 rounded-xl border border-[#E0A23A]/30 bg-[#E0A23A]/5 flex flex-col gap-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-[#102A43]">{copy.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {f.case?.need?.title || f.case?.caseNumber}
+                      {due && ` · ${due}`}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-8 text-xs rounded-lg border-[#E0A23A]/40 text-[#B7791F] hover:bg-[#E0A23A]/10"
+                      onClick={() => handleFollowUpAct(f)}
+                    >
+                      Tell REZZO
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-xs text-muted-foreground"
+                      onClick={() => handleFollowUpDismiss(f.id)}
+                    >
+                      Not now
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
