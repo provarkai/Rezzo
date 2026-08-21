@@ -2,17 +2,18 @@
 
 import { Card } from '@/components/ui/card'
 import { StatusBadge } from './StatusBadge'
-import { ArrowRight, Clock } from 'lucide-react'
+import { ArrowRight, Clock, Shield } from 'lucide-react'
 
 interface CaseCardProps {
   caseNumber: string
   status: string
   title: string
   date?: string
+  protectionStatus?: string
   onClick?: () => void
 }
 
-export function CaseCard({ caseNumber, status, title, date, onClick }: CaseCardProps) {
+export function CaseCard({ caseNumber, status, title, date, protectionStatus, onClick }: CaseCardProps) {
   return (
     <Card
       className="p-4 rounded-xl border-border/60 rezzo-card-hover cursor-pointer"
@@ -27,6 +28,9 @@ export function CaseCard({ caseNumber, status, title, date, onClick }: CaseCardP
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-semibold text-[#102A43]">{caseNumber}</span>
             <StatusBadge status={status} />
+            {protectionStatus === 'PROTECTED' && (
+              <Shield className="size-3.5 text-[#1F7A5A] shrink-0" aria-label="REZZO Protected" />
+            )}
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2">{title}</p>
           {date && (

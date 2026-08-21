@@ -96,6 +96,7 @@ interface CaseDetail {
   caseNumber: string
   status: string
   priority: string
+  protectionStatus?: string
   createdAt: string
   updatedAt: string
   need?: {
@@ -501,6 +502,17 @@ export function CaseWorkspace() {
                 </Badge>
               )}
             </div>
+            {caseData.protectionStatus === 'PROTECTED' && (
+              <div className="flex items-start gap-1.5 pt-2 border-t border-border/60">
+                <Shield className="size-3.5 text-[#1F7A5A] shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-xs font-semibold text-[#1F7A5A]">REZZO Protected Case</span>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Your payment, proof and dispute history are tied to this case.
+                  </p>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* AI REZZO Summary */}

@@ -11,6 +11,7 @@ interface CaseItem {
   id: string
   caseNumber: string
   status: string
+  protectionStatus?: string
   need?: { title?: string; description?: string }
   createdAt: string
   updatedAt: string
@@ -137,6 +138,7 @@ export function CaseList() {
               key={c.id}
               caseNumber={c.caseNumber}
               status={c.status}
+              protectionStatus={c.protectionStatus}
               title={c.need?.title || c.need?.description || 'Untitled case'}
               date={new Date(c.createdAt).toLocaleDateString('en-NG', {
                 day: 'numeric',
