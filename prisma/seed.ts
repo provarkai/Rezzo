@@ -389,6 +389,68 @@ async function seed() {
         },
         active: true,
       },
+      // Government & Documentation (PRD §12) — one of four launch
+      // verticals, previously had zero seeded sources.
+      {
+        category: 'PASSPORT',
+        authorityLevel: 'A',
+        title: 'Nigerian Passport Application Requirements',
+        url: 'https://example.gov.ng/immigration/passport',
+        contentJson: {
+          summary: 'Official requirements and process for new and renewal international passport applications',
+          source: 'Nigeria Immigration Service',
+          applicableTo: ['PASSPORT'],
+        },
+        active: true,
+      },
+      {
+        category: 'NIN',
+        authorityLevel: 'A',
+        title: 'National Identification Number (NIN) Enrollment Guide',
+        url: 'https://example.gov.ng/nimc/nin-enrollment',
+        contentJson: {
+          summary: 'Official NIN enrollment centers, required documents, and record correction process',
+          source: 'National Identity Management Commission (NIMC)',
+          applicableTo: ['NIN'],
+        },
+        active: true,
+      },
+      {
+        category: 'BIRTH_CERTIFICATE',
+        authorityLevel: 'A',
+        title: 'Birth Registration and Certificate Process',
+        url: 'https://example.gov.ng/npopulation/birth-registration',
+        contentJson: {
+          summary: 'Requirements for registering a birth and obtaining or reissuing a birth certificate',
+          source: 'National Population Commission',
+          applicableTo: ['BIRTH_CERTIFICATE'],
+        },
+        active: true,
+      },
+      {
+        category: 'DRIVERS_LICENSE',
+        authorityLevel: 'A',
+        title: "Driver's Licence Application & Renewal",
+        url: 'https://example.gov.ng/frsc/drivers-licence',
+        contentJson: {
+          summary: "Official requirements for new driver's licence applications, renewals and replacements",
+          source: 'Federal Road Safety Corps (FRSC)',
+          applicableTo: ['DRIVERS_LICENSE'],
+        },
+        active: true,
+      },
+      {
+        category: 'GOVERNMENT_DOCUMENTATION',
+        authorityLevel: 'B',
+        title: 'Navigating Nigerian Government Documentation',
+        url: 'https://example.org/govdoc-guide',
+        contentJson: {
+          summary: 'Practitioner guidance on sequencing and preparing for common Nigerian government documentation processes',
+          source: 'REZZO Verified Documentation Professionals',
+          applicableTo: ['GOVERNMENT_DOC'],
+        },
+        active: true,
+      },
     ],
   });
 

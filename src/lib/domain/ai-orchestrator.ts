@@ -150,8 +150,83 @@ function mockAiOrchestration(rawInput: string): AiOrchestrationResult {
     };
   }
 
-  // Government Documentation
-  if (input.includes('passport') || input.includes('nin') || input.includes('national id') || input.includes('certificate') || input.includes('government') || input.includes('visa')) {
+  // Government Documentation — sub-classified by document type, since the
+  // checklist and source hierarchy (PRD §12.2/12.3) differ a lot between
+  // them. Falls through to a generic branch for anything else that reads
+  // as government-related but doesn't name a specific document.
+  if (input.includes('passport')) {
+    return {
+      intent: 'Passport application or renewal',
+      need: 'Passport Processing',
+      matter: 'Nigerian passport application or renewal assistance',
+      category: 'PASSPORT',
+      vertical: 'GOVERNMENT_DOCUMENTATION',
+      riskLevel: RISK_LEVELS.ELEVATED,
+      missingInformation: ['New application or renewal', 'Current passport status', 'Preferred passport office'],
+      route: 'REQUIRE_CLARIFICATION',
+      requiredExpertise: ['government documentation', 'passport processes'],
+      requiredDocuments: ['Valid means of ID (NIN slip, voter\'s card, or old passport)', 'Birth certificate or age declaration', 'Passport photographs (white background)', 'Local government/parent attestation (first-time applicants)'],
+      nextAction: 'REQUEST_CLARIFICATION',
+      confidence: 55,
+      humanRequired: true,
+    };
+  }
+
+  if (input.includes('nin') || input.includes('national id')) {
+    return {
+      intent: 'National Identification Number (NIN) assistance',
+      need: 'NIN Registration',
+      matter: 'NIN enrollment, retrieval, or record correction',
+      category: 'NIN',
+      vertical: 'GOVERNMENT_DOCUMENTATION',
+      riskLevel: RISK_LEVELS.ELEVATED,
+      missingInformation: ['New enrollment, retrieval, or correction', 'Nearest NIMC enrollment center'],
+      route: 'REQUIRE_CLARIFICATION',
+      requiredExpertise: ['government documentation', 'NIMC processes'],
+      requiredDocuments: ['Birth certificate or age declaration', 'Proof of address', 'Existing ID document (if correcting a record)'],
+      nextAction: 'REQUEST_CLARIFICATION',
+      confidence: 55,
+      humanRequired: true,
+    };
+  }
+
+  if (input.includes('birth certificate') || input.includes('birth cert')) {
+    return {
+      intent: 'Birth certificate registration or retrieval',
+      need: 'Birth Certificate',
+      matter: 'Birth registration or certificate reissuance',
+      category: 'BIRTH_CERTIFICATE',
+      vertical: 'GOVERNMENT_DOCUMENTATION',
+      riskLevel: RISK_LEVELS.ELEVATED,
+      missingInformation: ['Registering a new birth or retrieving an existing certificate', 'State of birth'],
+      route: 'REQUIRE_CLARIFICATION',
+      requiredExpertise: ['government documentation', 'vital registration processes'],
+      requiredDocuments: ['Hospital birth notification (for new registration)', 'Parents\' means of ID', 'Marriage certificate (if applicable)'],
+      nextAction: 'REQUEST_CLARIFICATION',
+      confidence: 55,
+      humanRequired: true,
+    };
+  }
+
+  if (input.includes('driver') || input.includes('drivers licence') || input.includes('driving licence') || input.includes('driving license')) {
+    return {
+      intent: "Driver's licence application or renewal",
+      need: "Driver's Licence",
+      matter: "Driver's licence application, renewal, or replacement",
+      category: 'DRIVERS_LICENSE',
+      vertical: 'GOVERNMENT_DOCUMENTATION',
+      riskLevel: RISK_LEVELS.ELEVATED,
+      missingInformation: ['New application, renewal, or replacement', 'State of issuance'],
+      route: 'REQUIRE_CLARIFICATION',
+      requiredExpertise: ['government documentation', 'FRSC processes'],
+      requiredDocuments: ['NIN slip', 'Proof of address', 'Eye test report', 'Old licence (for renewal/replacement)'],
+      nextAction: 'REQUEST_CLARIFICATION',
+      confidence: 55,
+      humanRequired: true,
+    };
+  }
+
+  if (input.includes('certificate') || input.includes('government') || input.includes('visa')) {
     return {
       intent: 'Government documentation assistance',
       need: 'Government Documentation',
@@ -317,6 +392,7 @@ export async function handleOrchestrationResult(
     categoryId: result.category,
     urgency: result.riskLevel === 'HIGH' ? 'URGENT' : result.riskLevel === 'ELEVATED' ? 'HIGH' : 'NORMAL',
     confidence: result.confidence / 100,
+    requiredDocuments: result.requiredDocuments,
   });
 
   // Update case with AI results

@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft,
   Check,
@@ -26,6 +27,9 @@ import {
   Shield,
   CheckCircle2,
   Calendar,
+  FileCheck,
+  BookOpen,
+  ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -112,6 +116,14 @@ interface Dispute {
   createdAt: string
 }
 
+interface KnowledgeSourceItem {
+  id: string
+  title?: string
+  url?: string
+  authorityLevel: string
+  contentJson?: { summary?: string; source?: string }
+}
+
 interface CaseDetail {
   id: string
   caseNumber: string
@@ -141,6 +153,7 @@ interface CaseDetail {
   proofs?: Proof[]
   bookings?: Booking[]
   disputes?: Dispute[]
+  checkedDocuments?: string[]
   review?: {
     id: string
     rating: number
@@ -200,6 +213,7 @@ export function CaseWorkspace() {
   const [matches, setMatches] = useState<Match[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+  const [sources, setSources] = useState<KnowledgeSourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -292,6 +306,10 @@ export function CaseWorkspace() {
         resolutionNotes: d.resolutionNotes ? String(d.resolutionNotes) : undefined,
         createdAt: String(d.createdAt || ''),
       })) as unknown as CaseDetail['disputes']
+      const routeJson = (raw.case as Record<string, unknown>).routeJson as Record<string, unknown> | null
+      c.checkedDocuments = Array.isArray(routeJson?.checkedDocuments)
+        ? (routeJson!.checkedDocuments as string[])
+        : []
       setCaseData(c)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load case')
@@ -330,6 +348,16 @@ export function CaseWorkspace() {
     }
   }, [caseId])
 
+  const fetchSources = useCallback(async () => {
+    if (!caseId) return
+    try {
+      const data = await apiGet<{ sources: KnowledgeSourceItem[] }>(`/cases/${caseId}/sources`)
+      setSources(data.sources || [])
+    } catch {
+      setSources([])
+    }
+  }, [caseId])
+
   useEffect(() => {
     fetchCase()
   }, [fetchCase])
@@ -344,14 +372,18 @@ export function CaseWorkspace() {
       fetchTimeline()
       fetchMessages()
     }
-  }, [caseData, fetchMatches, fetchMessages, fetchTimeline])
+    if (caseData.matter?.category) {
+      fetchSources()
+    }
+  }, [caseData, fetchMatches, fetchMessages, fetchTimeline, fetchSources])
 
   const refreshAll = useCallback(async () => {
     await fetchCase()
     await fetchMatches()
     await fetchMessages()
     await fetchTimeline()
-  }, [fetchCase, fetchMatches, fetchMessages, fetchTimeline])
+    await fetchSources()
+  }, [fetchCase, fetchMatches, fetchMessages, fetchTimeline, fetchSources])
 
   const handleBack = () => {
     setSelectedCaseId(null)
@@ -454,6 +486,22 @@ export function CaseWorkspace() {
       })
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const handleToggleChecklistItem = async (document: string, checked: boolean) => {
+    if (!caseData) return
+    const previous = caseData.checkedDocuments || []
+    // Optimistic update
+    setCaseData({
+      ...caseData,
+      checkedDocuments: checked ? [...previous, document] : previous.filter((d) => d !== document),
+    })
+    try {
+      await apiPost(`/cases/${caseId}/checklist`, { document, checked })
+    } catch {
+      // Revert on failure
+      setCaseData((cur) => (cur ? { ...cur, checkedDocuments: previous } : cur))
     }
   }
 
@@ -719,6 +767,67 @@ export function CaseWorkspace() {
                   )}
                 </div>
               )}
+            </Card>
+          )}
+
+          {/* Document Checklist — PRD §12.2 "document checklist generation" */}
+          {matter?.requiredDocuments && matter.requiredDocuments.length > 0 && (
+            <Card className="p-4 gap-3">
+              <div className="flex items-center gap-2">
+                <FileCheck className="size-4 text-[#1F7A5A]" />
+                <span className="text-sm font-semibold text-[#102A43]">Document Checklist</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {matter.requiredDocuments.map((doc) => {
+                  const isChecked = (caseData.checkedDocuments || []).includes(doc)
+                  return (
+                    <label key={doc} className="flex items-start gap-2.5 cursor-pointer">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(v) => handleToggleChecklistItem(doc, v === true)}
+                        className="mt-0.5"
+                      />
+                      <span className={`text-sm ${isChecked ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                        {doc}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Trusted Sources — PRD §12.3 source hierarchy, clearly labelled by authority */}
+          {sources.length > 0 && (
+            <Card className="p-4 gap-3">
+              <div className="flex items-center gap-2">
+                <BookOpen className="size-4 text-[#1F7A5A]" />
+                <span className="text-sm font-semibold text-[#102A43]">Trusted Sources</span>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {sources.map((s) => {
+                  const authorityLabel = s.authorityLevel === 'A'
+                    ? 'Official government source'
+                    : s.authorityLevel === 'B'
+                      ? 'Verified professional guidance'
+                      : 'General guidance'
+                  return (
+                    <div key={s.id} className="pb-2.5 border-b border-border/60 last:border-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-foreground">{s.title}</p>
+                        {s.url && (
+                          <a href={s.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-[#1F7A5A]">
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {authorityLabel}{s.contentJson?.source ? ` · ${s.contentJson.source}` : ''}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
             </Card>
           )}
 

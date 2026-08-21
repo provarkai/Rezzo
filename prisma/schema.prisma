@@ -73,6 +73,11 @@ model Matter {
   categoryId  String?
   urgency     String   @default("NORMAL") // NORMAL, HIGH, URGENT
   confidence  Float    @default(0)
+  // What AI REZZO determined the customer will need to provide (PRD §12.2
+  // "document checklist generation"). A flat string list, not yet a
+  // per-document tracking model — checked-off state lives on
+  // Case.routeJson.checkedDocuments instead of a new table for V1.
+  requiredDocuments Json?
   createdAt   DateTime @default(now())
 
   need     Need  @relation(fields: [needId], references: [id])

@@ -385,6 +385,7 @@ export async function createMatterForCase(
     categoryId?: string;
     urgency?: string;
     confidence?: number;
+    requiredDocuments?: string[];
   }
 ) {
   const caseRecord = await db.case.findUnique({
@@ -404,6 +405,7 @@ export async function createMatterForCase(
         categoryId: data.categoryId ?? caseRecord.matter.categoryId,
         urgency: data.urgency ?? caseRecord.matter.urgency,
         confidence: data.confidence ?? caseRecord.matter.confidence,
+        requiredDocuments: data.requiredDocuments ?? (caseRecord.matter.requiredDocuments as object | undefined),
       },
     });
   }
@@ -415,6 +417,7 @@ export async function createMatterForCase(
       categoryId: data.categoryId || null,
       urgency: data.urgency || 'NORMAL',
       confidence: data.confidence || 0,
+      requiredDocuments: data.requiredDocuments || undefined,
     },
   });
 
@@ -424,6 +427,38 @@ export async function createMatterForCase(
   });
 
   return matter;
+}
+
+// ============ DOCUMENT CHECKLIST (PRD §12.2) ============
+
+// Which of Matter.requiredDocuments the customer has already gathered.
+// Kept on Case.routeJson rather than a new per-document table — V1 doesn't
+// need more than "have I got this yet", and routeJson is already the
+// free-form spot for this kind of derived case metadata.
+export async function toggleChecklistItem(
+  caseId: string,
+  document: string,
+  checked: boolean
+) {
+  const caseRecord = await db.case.findUnique({ where: { id: caseId } });
+  if (!caseRecord) throw new Error('Case not found');
+
+  const routeJson = (caseRecord.routeJson as Record<string, unknown> | null) || {};
+  const current = new Set(
+    Array.isArray(routeJson.checkedDocuments) ? (routeJson.checkedDocuments as string[]) : []
+  );
+  if (checked) {
+    current.add(document);
+  } else {
+    current.delete(document);
+  }
+
+  return db.case.update({
+    where: { id: caseId },
+    data: {
+      routeJson: { ...routeJson, checkedDocuments: [...current] },
+    },
+  });
 }
 
 // ============ LIST USER CASES ============
