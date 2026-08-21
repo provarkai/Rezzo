@@ -16,6 +16,7 @@ import {
   type CaseState,
   type CaseEventType,
 } from './constants';
+import { scanMessageForBypassSignals } from './bypass-detection';
 
 // ============ TYPES ============
 
@@ -463,7 +464,7 @@ export async function sendMessage(
     throw new Error('Case not found');
   }
 
-  return db.message.create({
+  const message = await db.message.create({
     data: {
       caseId,
       senderId,
@@ -472,6 +473,24 @@ export async function sendMessage(
       attachmentsJson: [],
     },
   });
+
+  // Anti-bypass detection (PRD Upgrade §6-§7) — never let it block message
+  // delivery if something about the scan itself fails.
+  try {
+    const sender = await db.user.findUnique({ where: { id: senderId }, select: { role: true } });
+    await scanMessageForBypassSignals({
+      caseId,
+      messageId: message.id,
+      senderId,
+      senderRole: sender?.role || ROLES.CUSTOMER,
+      channel,
+      body,
+    });
+  } catch {
+    // Detection is best-effort; the message itself has already been sent.
+  }
+
+  return message;
 }
 
 // ============ GET CASE MESSAGES ============
