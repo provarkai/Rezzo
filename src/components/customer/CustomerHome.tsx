@@ -25,6 +25,16 @@ const ACTION_BUTTONS = [
   { icon: Keyboard, label: 'Type', desc: 'Describe in text', color: 'bg-[#52606D] text-white' },
 ] as const
 
+// One example per launch vertical (design spec §7: "Suggested prompts for
+// first-time users"). Chosen to match the keyword routes the AI orchestrator
+// already recognizes, so tapping one produces a real, sensible result.
+const SUGGESTED_PROMPTS = [
+  'My AC is not cooling properly',
+  'I need help registering my business',
+  'I want to verify a property before buying it',
+  'I need help renewing my passport',
+] as const
+
 export function CustomerHome() {
   const setSelectedCaseId = useRezzoStore((s) => s.setSelectedCaseId)
   const setCustomerTab = useRezzoStore((s) => s.setCustomerTab)
@@ -160,6 +170,19 @@ export function CustomerHome() {
           <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
             <span>REZZO is analyzing your need...</span>
+          </div>
+        )}
+        {!text.trim() && !submitting && (
+          <div className="flex flex-wrap gap-1.5 mt-2.5">
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => { setText(prompt); focusTextInput() }}
+                className="text-xs px-3 py-1.5 rounded-full border border-border/60 bg-white text-muted-foreground hover:border-[#1F7A5A]/40 hover:text-[#1F7A5A] transition-colors"
+              >
+                {prompt}
+              </button>
+            ))}
           </div>
         )}
       </section>
