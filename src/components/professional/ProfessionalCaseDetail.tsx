@@ -735,6 +735,7 @@ export function ProfessionalCaseDetail() {
                     }
                   }}
                   placeholder="Type a message..."
+                  aria-label="Type a message"
                   className="flex-1"
                 />
                 <Button
@@ -742,6 +743,7 @@ export function ProfessionalCaseDetail() {
                   disabled={sendingMessage || !messageInput.trim()}
                   onClick={handleSendMessage}
                   className="bg-[#102A43] hover:bg-[#102A43]/90 text-white shrink-0"
+                  aria-label="Send message"
                 >
                   <Send className="size-4" />
                 </Button>

@@ -192,7 +192,15 @@ export function AdminDisputes() {
               ) : (
                 disputes.map((d) => (
                   <Fragment key={d.id}>
-                    <TableRow className="cursor-pointer" onClick={() => toggleExpand(d)}>
+                    <TableRow
+                      className="cursor-pointer"
+                      onClick={() => toggleExpand(d)}
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={expandedId === d.id}
+                      aria-label={`Dispute for case ${d.caseNumber}`}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(d) } }}
+                    >
                       <TableCell>
                         <span className="text-xs font-semibold text-[#102A43]">{d.caseNumber}</span>
                         {d.caseTitle && (

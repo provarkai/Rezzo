@@ -206,6 +206,7 @@ export function AdminBypassSignals() {
                             size="icon"
                             className="h-7 w-7 bg-muted text-muted-foreground hover:bg-muted/70"
                             title="Mark reviewed"
+                            aria-label="Mark reviewed"
                             onClick={() => review(s.id, 'REVIEWED')}
                             disabled={actionLoading === s.id}
                           >
@@ -215,6 +216,7 @@ export function AdminBypassSignals() {
                             size="icon"
                             className="h-7 w-7 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
                             title="Mark action taken"
+                            aria-label="Mark action taken"
                             onClick={() => review(s.id, 'ACTION_TAKEN')}
                             disabled={actionLoading === s.id}
                           >
@@ -224,6 +226,7 @@ export function AdminBypassSignals() {
                             size="icon"
                             className="h-7 w-7 bg-rezzo-danger/10 text-rezzo-danger hover:bg-rezzo-danger/20"
                             title="Dismiss"
+                            aria-label="Dismiss"
                             onClick={() => review(s.id, 'DISMISSED')}
                             disabled={actionLoading === s.id}
                           >
@@ -266,6 +269,7 @@ export function AdminBypassSignals() {
                         className="h-6 w-6 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
                         onClick={() => review(s.id, 'ACTION_TAKEN')}
                         disabled={actionLoading === s.id}
+                        aria-label="Mark action taken"
                       >
                         <CheckCircle2 className="size-3" />
                       </Button>
@@ -274,6 +278,7 @@ export function AdminBypassSignals() {
                         className="h-6 w-6 bg-rezzo-danger/10 text-rezzo-danger hover:bg-rezzo-danger/20"
                         onClick={() => review(s.id, 'DISMISSED')}
                         disabled={actionLoading === s.id}
+                        aria-label="Dismiss"
                       >
                         <X className="size-3" />
                       </Button>

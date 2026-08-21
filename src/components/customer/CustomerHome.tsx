@@ -201,6 +201,7 @@ export function CustomerHome() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={'Describe what you need... e.g. “My AC is not cooling properly”'}
+            aria-label="Describe what you need"
             className="min-h-[80px] resize-none pr-12 rounded-xl text-sm"
             disabled={submitting}
           />

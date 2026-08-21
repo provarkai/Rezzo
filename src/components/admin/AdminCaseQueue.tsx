@@ -172,6 +172,7 @@ export function AdminCaseQueue() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search cases..."
+            aria-label="Search cases"
             className="w-full h-8 pl-9 pr-3 rounded-lg border border-input bg-white text-xs"
           />
         </div>
@@ -200,7 +201,15 @@ export function AdminCaseQueue() {
                 </TableRow>
               ) : (
                 filteredCases.map((c) => (
-                  <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => openCaseDetail(c)}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Open case ${c.caseNumber}`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCaseDetail(c) } }}
+                  >
                     <TableCell className="text-xs font-semibold">{c.caseNumber}</TableCell>
                     <TableCell className="text-xs">{c.customer?.name || '—'}</TableCell>
                     <TableCell><StatusBadge status={c.status} /></TableCell>

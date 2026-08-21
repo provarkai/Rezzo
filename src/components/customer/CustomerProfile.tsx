@@ -65,6 +65,10 @@ export function CustomerProfile() {
               key={item.label}
               className="p-4 gap-0 rounded-xl cursor-pointer rezzo-card-hover"
               onClick={() => toast.info(`${item.label} coming soon!`)}
+              tabIndex={0}
+              role="button"
+              aria-label={item.label}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toast.info(`${item.label} coming soon!`) } }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">

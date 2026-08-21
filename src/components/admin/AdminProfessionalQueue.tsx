@@ -222,6 +222,7 @@ export function AdminProfessionalQueue() {
                               className="h-7 w-7 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
                               onClick={() => handleVerify(pro)}
                               disabled={actionLoading === pro.id}
+                              aria-label="Approve professional"
                             >
                               {actionLoading === pro.id ? (
                                 <Loader2 className="size-3.5 animate-spin" />
@@ -234,6 +235,7 @@ export function AdminProfessionalQueue() {
                               className="h-7 w-7 bg-rezzo-danger/10 text-rezzo-danger hover:bg-rezzo-danger/20"
                               onClick={() => handleRejectOpen(pro)}
                               disabled={actionLoading === pro.id}
+                              aria-label="Reject professional"
                             >
                               <X className="size-3.5" />
                             </Button>
@@ -292,6 +294,7 @@ export function AdminProfessionalQueue() {
                         className="h-6 w-6 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
                         onClick={() => handleVerify(pro)}
                         disabled={actionLoading === pro.id}
+                        aria-label="Approve professional"
                       >
                         {actionLoading === pro.id ? (
                           <Loader2 className="size-3 animate-spin" />
@@ -304,6 +307,7 @@ export function AdminProfessionalQueue() {
                         className="h-6 w-6 bg-rezzo-danger/10 text-rezzo-danger hover:bg-rezzo-danger/20"
                         onClick={() => handleRejectOpen(pro)}
                         disabled={actionLoading === pro.id}
+                        aria-label="Reject professional"
                       >
                         <X className="size-3" />
                       </Button>

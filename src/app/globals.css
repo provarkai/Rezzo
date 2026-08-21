@@ -158,3 +158,16 @@
 .case-status-resolved { color: #1F7A5A; background: #D4EDDA; }
 .case-status-disputed { color: #C23B3B; background: #FDE8E8; }
 .case-status-cancelled { color: #52606D; background: #F0F4F8; }
+
+/* Accessibility: honor the OS-level "reduce motion" setting (PRD/UX spec
+   §45). Nothing in the app checked this before — .rezzo-card-hover's
+   translateY, every shadcn transition, and Tailwind's animate-spin all
+   ran at full motion regardless of the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

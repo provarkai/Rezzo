@@ -142,6 +142,7 @@ export function ProfessionalCaseList() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') setProSelectedCaseId(c.id)
                 }}
+                aria-label={`Case ${c.caseNumber}: ${c.title || c.matter?.title || 'Untitled Case'}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">

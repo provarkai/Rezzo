@@ -1214,6 +1214,7 @@ export function CaseWorkspace() {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
+                        aria-label="Type a message"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleSendMessage()
                         }}
@@ -1224,6 +1225,7 @@ export function CaseWorkspace() {
                         onClick={handleSendMessage}
                         disabled={!newMessage.trim() || sendingMessage}
                         className="rounded-lg bg-[#102A43] hover:bg-[#102A43]/90 shrink-0"
+                        aria-label="Send message"
                       >
                         {sendingMessage ? (
                           <Loader2 className="size-4 animate-spin" />
