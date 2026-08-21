@@ -674,6 +674,11 @@ export function Homepage() {
   )
 }
 
+// Shared password for the seeded demo accounts (see prisma/seed.ts). This is
+// a local/pilot sandbox convenience, not a secret credential for real users.
+const DEMO_ACCOUNT_PASSWORD = 'Rezzo@Demo123'
+const MIN_REGISTER_PASSWORD_LENGTH = 8
+
 // ─── Login Dialog (Inline) ───────────────────────────────────────────────────
 function LoginDialog({
   children,
@@ -688,6 +693,8 @@ function LoginDialog({
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<'CUSTOMER' | 'PROFESSIONAL'>(defaultRole)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -697,13 +704,21 @@ function LoginDialog({
       setError('Please enter your phone number')
       return
     }
+    if (!password) {
+      setError('Please enter your password')
+      return
+    }
+    if (mode === 'register' && password.length < MIN_REGISTER_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_REGISTER_PASSWORD_LENGTH} characters`)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
       try {
         const res = await apiPost<{ user?: { id: string; displayName?: string; name?: string; phone: string; role: string }; token?: string }>(
           '/auth/login',
-          { phone: phone.trim() }
+          { phone: phone.trim(), password }
         )
         if (res.user) {
           if (res.token) setAuthToken(res.token)
@@ -720,7 +735,7 @@ function LoginDialog({
       const regName = name.trim() || (role === 'PROFESSIONAL' ? 'Professional' : 'Customer')
       const res = await apiPost<{ user: { id: string; displayName?: string; name?: string; phone: string; role: string }; token?: string }>(
         '/auth/register',
-        { phone: phone.trim(), name: regName, role }
+        { phone: phone.trim(), password, name: regName, role }
       )
       if (res.token) setAuthToken(res.token)
       setCurrentUser({
@@ -735,25 +750,47 @@ function LoginDialog({
     } finally {
       setLoading(false)
     }
-  }, [phone, name, role, setCurrentUser])
+  }, [phone, name, password, mode, role, setCurrentUser])
 
   const handleDemoLogin = useCallback(async (demoRole: 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN') => {
     setLoading(true)
     setError(null)
     try {
+      interface LoginUser { id: string; displayName?: string; name?: string; phone?: string; email?: string; role: string }
+
+      // The seeded admin account only ever exists via the seed script (public
+      // self-registration can no longer create admins) — log in only, with
+      // no create-on-demand fallback.
+      if (demoRole === 'ADMIN') {
+        const res = await apiPost<{ user?: LoginUser; token?: string }>(
+          '/auth/login',
+          { email: 'admin@rezzo.ng', password: DEMO_ACCOUNT_PASSWORD }
+        )
+        if (!res.user) throw new Error('Admin demo account is not available')
+        if (res.token) setAuthToken(res.token)
+        setCurrentUser({
+          id: res.user.id,
+          name: res.user.displayName || res.user.name || 'REZZO Admin',
+          email: res.user.email,
+          role: res.user.role as 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN',
+        })
+        setOpen(false)
+        return
+      }
+
       const demoPhones: Record<string, string> = {
         CUSTOMER: '08010000001',
         PROFESSIONAL: '08020000001',
-        ADMIN: '08030000001',
       }
       const demoNames: Record<string, string> = {
         CUSTOMER: 'Adebayo Okonkwo',
         PROFESSIONAL: 'Tunde Adeyemi',
-        ADMIN: 'REZZO Admin',
       }
-      interface LoginUser { id: string; displayName?: string; name?: string; phone?: string; email?: string; role: string }
       try {
-        const res = await apiPost<{ user?: LoginUser; token?: string }>('/auth/login', { phone: demoPhones[demoRole] })
+        const res = await apiPost<{ user?: LoginUser; token?: string }>(
+          '/auth/login',
+          { phone: demoPhones[demoRole], password: DEMO_ACCOUNT_PASSWORD }
+        )
         if (res.user) {
           if (res.token) setAuthToken(res.token)
           setCurrentUser({
@@ -768,7 +805,8 @@ function LoginDialog({
         }
       } catch { /* fall through */ }
       const regRes = await apiPost<{ user: LoginUser; token?: string }>(
-        '/auth/register', { phone: demoPhones[demoRole], name: demoNames[demoRole], role: demoRole }
+        '/auth/register',
+        { phone: demoPhones[demoRole], password: DEMO_ACCOUNT_PASSWORD, name: demoNames[demoRole], role: demoRole }
       )
       const u = regRes.user
       if (regRes.token) setAuthToken(regRes.token)
@@ -806,7 +844,7 @@ function LoginDialog({
                   </div>
                   <h2 className="text-xl font-bold text-[#102A43]">Welcome to REZZO</h2>
                 </div>
-                <p className="text-[13px] text-[#52606D]">Get started with your phone number</p>
+                <p className="text-[13px] text-[#52606D]">Get started with your phone number and password</p>
               </div>
 
               {/* Role Toggle */}
@@ -852,8 +890,25 @@ function LoginDialog({
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Phone Number (e.g. 08012345678)"
                   className="h-12 w-full rounded-xl border border-[#D9E2EC] bg-transparent px-4 text-[14px] text-[#102A43] placeholder:text-[#52606D]/50 focus-visible:border-[#1F7A5A] focus-visible:ring-[#1F7A5A]/20 focus-visible:ring-[3px] outline-none transition-all"
-                  onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                 />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === 'register' ? `Password (min. ${MIN_REGISTER_PASSWORD_LENGTH} characters)` : 'Password'}
+                    className="h-12 w-full rounded-xl border border-[#D9E2EC] bg-transparent pl-4 pr-11 text-[14px] text-[#102A43] placeholder:text-[#52606D]/50 focus-visible:border-[#1F7A5A] focus-visible:ring-[#1F7A5A]/20 focus-visible:ring-[3px] outline-none transition-all"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#52606D] hover:text-[#102A43] transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Eye className="size-4" />
+                  </button>
+                </div>
 
                 {error && <p className="text-[12px] text-[#C23B3B] font-medium">{error}</p>}
 

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { hashPassword } from '@/lib/password';
+
+// Shared password for every seeded demo account. This is a local/pilot
+// sandbox convenience, not a secret — do not seed these accounts (or reuse
+// this password) against a database that holds real user data.
+const DEMO_PASSWORD = 'Rezzo@Demo123';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // ============ CUSTOMER USERS ============
     const customer1 = await db.user.create({
-      data: { phone: '+2348012345678', role: 'CUSTOMER', status: 'ACTIVE' },
+      data: { phone: '+2348012345678', password: hashPassword(DEMO_PASSWORD), role: 'CUSTOMER', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: {
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest) {
     });
 
     const customer2 = await db.user.create({
-      data: { phone: '+2348023456789', role: 'CUSTOMER', status: 'ACTIVE' },
+      data: { phone: '+2348023456789', password: hashPassword(DEMO_PASSWORD), role: 'CUSTOMER', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: {
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
     });
 
     const customer3 = await db.user.create({
-      data: { phone: '+2348034567890', role: 'CUSTOMER', status: 'ACTIVE' },
+      data: { phone: '+2348034567890', password: hashPassword(DEMO_PASSWORD), role: 'CUSTOMER', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: {
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     // ============ PROFESSIONAL 1: AC Repair ============
     const proUser1 = await db.user.create({
-      data: { phone: '+2348055511111', email: 'tunde@rezzo.ng', role: 'PROFESSIONAL', status: 'ACTIVE' },
+      data: { phone: '+2348055511111', email: 'tunde@rezzo.ng', password: hashPassword(DEMO_PASSWORD), role: 'PROFESSIONAL', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: { userId: proUser1.id, displayName: 'Tunde Bakare', location: 'Lagos', state: 'Lagos', preferences: { language: 'en' } },
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     // ============ PROFESSIONAL 2: Generator Repair ============
     const proUser2 = await db.user.create({
-      data: { phone: '+2348055522222', email: 'emeka@rezzo.ng', role: 'PROFESSIONAL', status: 'ACTIVE' },
+      data: { phone: '+2348055522222', email: 'emeka@rezzo.ng', password: hashPassword(DEMO_PASSWORD), role: 'PROFESSIONAL', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: { userId: proUser2.id, displayName: 'Emeka Nwosu', location: 'Lagos', state: 'Lagos', preferences: { language: 'en' } },
@@ -145,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // ============ PROFESSIONAL 3: Plumbing ============
     const proUser3 = await db.user.create({
-      data: { phone: '+2348055533333', email: 'bola@rezzo.ng', role: 'PROFESSIONAL', status: 'ACTIVE' },
+      data: { phone: '+2348055533333', email: 'bola@rezzo.ng', password: hashPassword(DEMO_PASSWORD), role: 'PROFESSIONAL', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: { userId: proUser3.id, displayName: 'Bola Adeyemi', location: 'Abuja', state: 'FCT', preferences: { language: 'en' } },
@@ -180,7 +186,7 @@ export async function POST(request: NextRequest) {
 
     // ============ ADMIN ============
     const admin = await db.user.create({
-      data: { email: 'admin@rezzo.ng', role: 'ADMIN', status: 'ACTIVE' },
+      data: { email: 'admin@rezzo.ng', password: hashPassword(DEMO_PASSWORD), role: 'ADMIN', status: 'ACTIVE' },
     });
     await db.profile.create({
       data: { userId: admin.id, displayName: 'REZZO Admin', preferences: { language: 'en' } },

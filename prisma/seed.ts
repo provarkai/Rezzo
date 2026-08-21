@@ -3,6 +3,12 @@
 // ============================================================
 
 import { db } from '../src/lib/db';
+import { hashPassword } from '../src/lib/password';
+
+// Shared password for every seeded demo account. This is a local/pilot
+// sandbox convenience, not a secret — do not seed these accounts (or reuse
+// this password) against a database that holds real user data.
+const DEMO_PASSWORD = 'Rezzo@Demo123';
 
 async function seed() {
   console.log('🌱 Seeding REZZO database...');
@@ -32,6 +38,7 @@ async function seed() {
   const customer1 = await db.user.create({
     data: {
       phone: '+2348012345678',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'CUSTOMER',
       status: 'ACTIVE',
     },
@@ -49,6 +56,7 @@ async function seed() {
   const customer2 = await db.user.create({
     data: {
       phone: '+2348023456789',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'CUSTOMER',
       status: 'ACTIVE',
     },
@@ -66,6 +74,7 @@ async function seed() {
   const customer3 = await db.user.create({
     data: {
       phone: '+2348034567890',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'CUSTOMER',
       status: 'ACTIVE',
     },
@@ -88,6 +97,7 @@ async function seed() {
     data: {
       phone: '+2348055511111',
       email: 'tunde@rezzo.ng',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'PROFESSIONAL',
       status: 'ACTIVE',
     },
@@ -153,6 +163,7 @@ async function seed() {
     data: {
       phone: '+2348055522222',
       email: 'emeka@rezzo.ng',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'PROFESSIONAL',
       status: 'ACTIVE',
     },
@@ -236,6 +247,7 @@ async function seed() {
     data: {
       phone: '+2348055533333',
       email: 'bola@rezzo.ng',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'PROFESSIONAL',
       status: 'ACTIVE',
     },
@@ -300,6 +312,7 @@ async function seed() {
   const admin = await db.user.create({
     data: {
       email: 'admin@rezzo.ng',
+      password: hashPassword(DEMO_PASSWORD),
       role: 'ADMIN',
       status: 'ACTIVE',
     },
@@ -435,6 +448,7 @@ async function seed() {
   console.log(`Professionals: ${pro1.id}, ${pro2.id}, ${pro3.id}`);
   console.log(`Admin: ${admin.id}`);
   console.log(`Sample Case: ${sampleCase.id} (${sampleCase.caseNumber})`);
+  console.log(`Demo password (all seeded accounts): ${DEMO_PASSWORD}`);
 }
 
 seed()

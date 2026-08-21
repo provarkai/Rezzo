@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { signToken } from '@/lib/auth';
+import { verifyPassword } from '@/lib/password';
 import { z } from 'zod';
 
 const loginSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
+  password: z.string().min(1, 'Password is required'),
 });
 
 export async function POST(request: NextRequest) {
@@ -18,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(errorResponse('VALIDATION_ERROR', msg), { status: 400 });
     }
 
-    const { phone, email } = parsed.data;
+    const { phone, email, password } = parsed.data;
 
     if (!phone && !email) {
       return NextResponse.json(
@@ -35,10 +37,12 @@ export async function POST(request: NextRequest) {
       include: { profile: true, professional: true },
     });
 
-    if (!user) {
+    // Same generic error whether the account doesn't exist or the password
+    // is wrong — do not let callers use this endpoint to enumerate accounts.
+    if (!user || !verifyPassword(password, user.password)) {
       return NextResponse.json(
-        errorResponse('NOT_FOUND', 'User not found'),
-        { status: 404 }
+        errorResponse('AUTH_INVALID_CREDENTIALS', 'Invalid phone/email or password'),
+        { status: 401 }
       );
     }
 
