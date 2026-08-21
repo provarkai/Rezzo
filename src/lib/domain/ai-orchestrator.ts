@@ -9,9 +9,12 @@ import {
   ROLES,
   RISK_LEVELS,
   AI_REZZO_SYSTEM_PROMPT,
+  AI_ESCALATION_CONFIDENCE_THRESHOLD,
+  AI_JOB_STATUSES,
   type CaseEventType,
 } from './constants';
 import { transitionCase, addCaseEvent, createMatterForCase } from './case-engine';
+import { detectHighRiskCategory } from './risk-detection';
 
 // ============ TYPES ============
 
@@ -332,6 +335,24 @@ export async function orchestrateCase(caseId: string): Promise<AiOrchestrationRe
     result = mockAiOrchestration(rawInput);
   }
 
+  // §16.2 high-risk safety net — overrides whatever the classifier decided,
+  // mock or LLM. Applied here rather than inside either classifier so it
+  // can't be bypassed by a future prompt change or a new mock branch.
+  const highRiskCategory = detectHighRiskCategory(rawInput);
+  if (highRiskCategory) {
+    result = { ...result, riskLevel: RISK_LEVELS.HIGH, humanRequired: true };
+  }
+
+  // §16.1 "human escalation thresholds" — low confidence, an explicit
+  // humanRequired flag, or a detected high-risk category all mean a human
+  // reviews this job before it's considered COMPLETED. Previously this
+  // status was hardcoded to COMPLETED regardless, so ESCALATED (a value
+  // the schema already had a column for) never actually got used.
+  const needsEscalation =
+    result.humanRequired ||
+    result.confidence < AI_ESCALATION_CONFIDENCE_THRESHOLD ||
+    result.riskLevel === RISK_LEVELS.HIGH;
+
   // Create AI Job record
   const aiJob = await db.aiJob.create({
     data: {
@@ -341,7 +362,8 @@ export async function orchestrateCase(caseId: string): Promise<AiOrchestrationRe
       objective: `Classify and route case: ${caseRecord.caseNumber}`,
       risk: result.riskLevel,
       confidence: result.confidence / 100,
-      status: 'COMPLETED',
+      status: needsEscalation ? AI_JOB_STATUSES.ESCALATED : AI_JOB_STATUSES.COMPLETED,
+      highRiskCategory,
       outputJson: result as object,
     },
   });
@@ -359,6 +381,8 @@ export async function orchestrateCase(caseId: string): Promise<AiOrchestrationRe
       confidence: result.confidence,
       riskLevel: result.riskLevel,
       humanRequired: result.humanRequired,
+      highRiskCategory,
+      escalated: needsEscalation,
     }
   );
 

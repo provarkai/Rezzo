@@ -14,6 +14,7 @@ import { AdminKnowledge } from './AdminKnowledge'
 import { AdminAudit } from './AdminAudit'
 import { AdminSettings } from './AdminSettings'
 import { AdminAnalytics } from './AdminAnalytics'
+import { AdminAiOversight } from './AdminAiOversight'
 import {
   LayoutDashboard,
   Briefcase,
@@ -28,6 +29,7 @@ import {
   ShieldCheck,
   BookOpen,
   ScrollText,
+  BrainCircuit,
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -36,6 +38,7 @@ const SIDEBAR_ITEMS = [
   { id: 'professionals', label: 'Professionals', icon: Users },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle },
   { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'ai-jobs', label: 'AI Oversight', icon: BrainCircuit },
   { id: 'ai-oversight', label: 'Trust & Protection', icon: ShieldAlert },
   { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'trust-rules', label: 'Trust Rules', icon: ShieldCheck },
@@ -139,6 +142,7 @@ export function AdminApp() {
             {adminTab === 'professionals' && <AdminProfessionalQueue />}
             {adminTab === 'disputes' && <AdminDisputes />}
             {adminTab === 'payments' && <AdminPayments />}
+            {adminTab === 'ai-jobs' && <AdminAiOversight />}
             {adminTab === 'ai-oversight' && <AdminBypassSignals />}
             {adminTab === 'categories' && <AdminCategories />}
             {adminTab === 'trust-rules' && <AdminTrustRules />}

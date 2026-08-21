@@ -33,6 +33,7 @@ model User {
   auditLogs       AuditLog[]
   notifications   Notification[]
   aiJobs          AiJob[]    @relation("AiJobOwner")
+  aiJobsReviewed  AiJob[]    @relation("AiJobReviewer")
   subscriptions    Subscription[]
   caseParticipants  CaseParticipant[] @relation("CaseParticipants")
 }
@@ -460,12 +461,19 @@ model AiJob {
   risk          String   @default("NORMAL")
   confidence    Float    @default(0)
   status        String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, ESCALATED
-  outputJson    Json?    
+  highRiskCategory String? // set only when the §16.2 keyword safety net fired
+  outputJson    Json?
+  // Human escalation review (PRD §16.1) — status stays ESCALATED as the
+  // historical record; reviewedAt is what actually marks it handled.
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   case    Case?   @relation(fields: [caseId], references: [id])
   owner   User?   @relation("AiJobOwner", fields: [ownerId], references: [id])
+  reviewer User?  @relation("AiJobReviewer", fields: [reviewedBy], references: [id])
   toolCalls AiToolCall[]
 }
 

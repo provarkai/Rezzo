@@ -113,6 +113,32 @@ export const RISK_LEVELS = {
   HIGH: 'HIGH',
 } as const;
 
+// PRD §16.1 "Required controls": confidence scoring, high-risk category
+// detection, human escalation thresholds. An AiJob below this confidence,
+// or flagged as a high-risk category, or with humanRequired set, is
+// ESCALATED instead of COMPLETED — a human reviews it, rather than the AI
+// re-asking the customer for clarification and proceeding on its own.
+export const AI_ESCALATION_CONFIDENCE_THRESHOLD = 40;
+
+// PRD §16.2. Detected independently of the vertical/category classifier
+// (mock or LLM) as a deterministic keyword safety net — the point is that
+// this check doesn't rely on the AI's own judgment of its risk.
+export const HIGH_RISK_CATEGORIES = {
+  LEGAL: 'LEGAL',
+  FINANCIAL: 'FINANCIAL',
+  HEALTHCARE: 'HEALTHCARE',
+  GOVERNMENT_IDENTITY: 'GOVERNMENT_IDENTITY',
+  SAFETY_CRITICAL: 'SAFETY_CRITICAL',
+} as const;
+
+export const AI_JOB_STATUSES = {
+  PENDING: 'PENDING',
+  RUNNING: 'RUNNING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  ESCALATED: 'ESCALATED',
+} as const;
+
 export const VERIFICATION_STATUSES = {
   PENDING: 'PENDING',
   NEEDS_INFO: 'NEEDS_INFO',
