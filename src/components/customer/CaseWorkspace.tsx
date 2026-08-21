@@ -25,6 +25,7 @@ import {
   Loader2,
   Shield,
   CheckCircle2,
+  Calendar,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -92,6 +93,15 @@ interface Proof {
   createdAt: string
 }
 
+interface Booking {
+  id: string
+  startsAt?: string
+  endsAt?: string
+  location?: string
+  status: string
+  confirmedAt?: string
+}
+
 interface CaseDetail {
   id: string
   caseNumber: string
@@ -119,6 +129,7 @@ interface CaseDetail {
   quotes?: Quote[]
   payments?: Payment[]
   proofs?: Proof[]
+  bookings?: Booking[]
   review?: {
     id: string
     rating: number
@@ -198,7 +209,7 @@ export function CaseWorkspace() {
     try {
       setLoading(true)
       setError(null)
-      const raw = await apiGet<{ case: Record<string, unknown>; need?: Record<string, unknown>; matter?: Record<string, unknown>; events?: Record<string, unknown>[]; quotes?: Record<string, unknown>[]; payments?: Record<string, unknown>[]; proofItems?: Record<string, unknown>[]; messages?: Record<string, unknown>[]; reviews?: Record<string, unknown>[] }>(`/cases/${caseId}`)
+      const raw = await apiGet<{ case: Record<string, unknown>; need?: Record<string, unknown>; matter?: Record<string, unknown>; events?: Record<string, unknown>[]; quotes?: Record<string, unknown>[]; payments?: Record<string, unknown>[]; proofItems?: Record<string, unknown>[]; bookings?: Record<string, unknown>[]; messages?: Record<string, unknown>[]; reviews?: Record<string, unknown>[] }>(`/cases/${caseId}`)
       // Flatten the nested response into CaseDetail shape
       const c = raw.case as unknown as CaseDetail
       c.need = raw.need as CaseDetail['need']
@@ -214,8 +225,8 @@ export function CaseWorkspace() {
         id: String(m.id),
         body: String(m.body || ''),
         senderId: String(m.senderId || ''),
-        senderName: String((m.user as Record<string, unknown>)?.profile?.displayName || (m.user as Record<string, unknown>)?.profile?.name || ''),
-        senderRole: String((m.user as Record<string, unknown>)?.role || ''),
+        senderName: String((m.sender as Record<string, unknown>)?.profile?.displayName || (m.sender as Record<string, unknown>)?.profile?.name || ''),
+        senderRole: String((m.sender as Record<string, unknown>)?.role || ''),
         createdAt: String(m.createdAt || ''),
       })) as unknown as CaseDetail['messages']
       c.quotes = (raw.quotes || []).map((q: Record<string, unknown>) => ({
@@ -246,6 +257,14 @@ export function CaseWorkspace() {
         status: String(p.status || 'PENDING'),
         createdAt: String(p.createdAt || ''),
       })) as unknown as CaseDetail['proofs']
+      c.bookings = (raw.bookings || []).map((b: Record<string, unknown>) => ({
+        id: String(b.id),
+        startsAt: b.startsAt ? String(b.startsAt) : undefined,
+        endsAt: b.endsAt ? String(b.endsAt) : undefined,
+        location: b.location ? String(b.location) : undefined,
+        status: String(b.status || 'SCHEDULED'),
+        confirmedAt: b.confirmedAt ? String(b.confirmedAt) : undefined,
+      })) as unknown as CaseDetail['bookings']
       setCaseData(c)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load case')
@@ -363,6 +382,36 @@ export function CaseWorkspace() {
       await refreshAll()
     } catch (err) {
       toast.error('Payment failed', {
+        description: err instanceof Error ? err.message : 'Please try again',
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleConfirmBooking = async (bookingId: string) => {
+    setActionLoading('booking-confirm')
+    try {
+      await apiPost(`/bookings/${bookingId}/confirm`)
+      toast.success('Appointment confirmed')
+      await refreshAll()
+    } catch (err) {
+      toast.error('Could not confirm the appointment', {
+        description: err instanceof Error ? err.message : 'Please try again',
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeclineBooking = async (bookingId: string) => {
+    setActionLoading('booking-decline')
+    try {
+      await apiPost(`/bookings/${bookingId}/cancel`)
+      toast.success('Appointment declined — the professional can propose a new time')
+      await refreshAll()
+    } catch (err) {
+      toast.error('Could not decline the appointment', {
         description: err instanceof Error ? err.message : 'Please try again',
       })
     } finally {
@@ -824,6 +873,65 @@ export function CaseWorkspace() {
           {/* ===== IN_PROGRESS / FUNDED: Service Tracking ===== */}
           {(status === 'FUNDED' || status === 'IN_PROGRESS') && (
             <>
+              {/* Appointment */}
+              {caseData.bookings && caseData.bookings.filter((b) => b.status !== 'CANCELLED').length > 0 && (
+                <section className="flex flex-col gap-3">
+                  <h3 className="text-sm font-semibold text-[#102A43]">Appointment</h3>
+                  {caseData.bookings
+                    .filter((b) => b.status !== 'CANCELLED')
+                    .map((booking) => (
+                      <Card key={booking.id} className="p-4 gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-[#1F7A5A]/10 flex items-center justify-center">
+                            <Calendar className="size-4 text-[#1F7A5A]" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-[#102A43]">
+                              {booking.startsAt ? formatDate(booking.startsAt) : 'Time to be confirmed'}
+                              {booking.startsAt && ` at ${formatTime(booking.startsAt)}`}
+                            </p>
+                            {booking.location && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="size-3" /> {booking.location}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {booking.confirmedAt ? (
+                          <div className="flex items-center gap-1.5 text-xs text-[#1F7A5A] font-medium">
+                            <CheckCircle2 className="size-3.5" /> Confirmed
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-[#1F7A5A] hover:bg-[#1F7A5A]/90 text-white"
+                              disabled={actionLoading === 'booking-confirm'}
+                              onClick={() => handleConfirmBooking(booking.id)}
+                            >
+                              {actionLoading === 'booking-confirm' ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Check className="size-4" /> Confirm time
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading === 'booking-decline'}
+                              onClick={() => handleDeclineBooking(booking.id)}
+                            >
+                              Not this time
+                            </Button>
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                </section>
+              )}
+
               {/* Timeline */}
               {timeline.length > 0 && (
                 <section className="flex flex-col gap-3">

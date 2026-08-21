@@ -37,6 +37,8 @@ export interface CaseDetails {
   participants: Record<string, unknown>[];
   quotes: Record<string, unknown>[];
   payments: Record<string, unknown>[];
+  bookings: Record<string, unknown>[];
+  proofItems: Record<string, unknown>[];
   messages: Record<string, unknown>[];
   disputes: Record<string, unknown>[];
   reviews: Record<string, unknown>[];
@@ -326,6 +328,9 @@ export async function getCaseWithDetails(caseId: string): Promise<CaseDetails | 
       payments: {
         orderBy: { createdAt: 'desc' },
       },
+      bookings: {
+        orderBy: { createdAt: 'desc' },
+      },
       messages: {
         include: {
           sender: {
@@ -360,6 +365,10 @@ export async function getCaseWithDetails(caseId: string): Promise<CaseDetails | 
     participants: caseRecord.participants as unknown as Record<string, unknown>[],
     quotes: caseRecord.quotes as unknown as Record<string, unknown>[],
     payments: caseRecord.payments as unknown as Record<string, unknown>[],
+    bookings: caseRecord.bookings as unknown as Record<string, unknown>[],
+    // Also nested under `case.proofItems` (caseRecord is spread in as-is above),
+    // but exposed here too since that's the top-level key existing UI code reads.
+    proofItems: caseRecord.proofItems as unknown as Record<string, unknown>[],
     messages: caseRecord.messages as unknown as Record<string, unknown>[],
     disputes: caseRecord.disputes as unknown as Record<string, unknown>[],
     reviews: caseRecord.reviews as unknown as Record<string, unknown>[],

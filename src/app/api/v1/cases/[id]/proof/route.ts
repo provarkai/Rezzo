@@ -38,6 +38,17 @@ export async function POST(
       types: proofItems.map((item) => item.type),
     });
 
+    // Normally FUNDED -> IN_PROGRESS already happened when the customer
+    // confirmed the appointment (POST /bookings/[id]/confirm). Not every
+    // case goes through a booking, though, so fall through it here too —
+    // otherwise a case that skipped booking would get stuck unable to
+    // reach PROOF at all (FUNDED -> PROOF isn't a valid direct transition).
+    try {
+      await transitionCase(id, 'IN_PROGRESS', auth.user.id, 'PROFESSIONAL');
+    } catch {
+      // Already past IN_PROGRESS, or booking confirmation got there first
+    }
+
     // Transition case to PROOF
     try {
       await transitionCase(id, 'PROOF', auth.user.id, 'PROFESSIONAL');

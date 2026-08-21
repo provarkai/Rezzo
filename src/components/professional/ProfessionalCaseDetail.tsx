@@ -20,6 +20,7 @@ import {
   Sparkles,
   FileText,
   Upload,
+  Calendar,
 } from 'lucide-react'
 
 interface CaseMessage {
@@ -60,6 +61,16 @@ interface CaseDetail {
     status?: string
     expiresAt?: string
   }>
+  bookings?: Array<{
+    id: string
+    startsAt?: string
+    endsAt?: string
+    location?: string
+    notes?: string
+    status: string
+    confirmedAt?: string
+    quoteId?: string
+  }>
 }
 
 export function ProfessionalCaseDetail() {
@@ -81,6 +92,12 @@ export function ProfessionalCaseDetail() {
   const [quoteValidDays, setQuoteValidDays] = useState('7')
   const [submittingQuote, setSubmittingQuote] = useState(false)
 
+  // Booking form state
+  const [bookingStartsAt, setBookingStartsAt] = useState('')
+  const [bookingLocation, setBookingLocation] = useState('')
+  const [submittingBooking, setSubmittingBooking] = useState(false)
+  const [cancellingBooking, setCancellingBooking] = useState(false)
+
   // Proof form state
   const [proofDescription, setProofDescription] = useState('')
   const [proofType, setProofType] = useState('COMPLETION')
@@ -97,13 +114,34 @@ export function ProfessionalCaseDetail() {
       setLoading(true)
       setError(null)
       const [caseRes, msgRes, tlRes] = await Promise.all([
-        apiGet<CaseDetail>(`/cases/${caseId}`),
-        apiGet<CaseMessage[]>(`/cases/${caseId}/messages`).catch(() => []),
-        apiGet<TimelineEvent[]>(`/cases/${caseId}/timeline`).catch(() => []),
+        apiGet<{ case: Record<string, unknown>; matter?: Record<string, unknown>; quotes?: Record<string, unknown>[]; bookings?: Record<string, unknown>[] }>(`/cases/${caseId}`),
+        apiGet<{ messages?: Record<string, unknown>[] }>(`/cases/${caseId}/messages`).catch(() => ({ messages: [] })),
+        apiGet<{ timeline?: Record<string, unknown>[] }>(`/cases/${caseId}/timeline`).catch(() => ({ timeline: [] })),
       ])
-      setCaseData(caseRes)
-      setMessages(Array.isArray(msgRes) ? msgRes : [])
-      setTimeline(Array.isArray(tlRes) ? tlRes : [])
+      // The API nests case fields under `case` and lists (quotes, bookings, ...)
+      // at the top level — flatten into the shape this component expects,
+      // same pattern as the customer CaseWorkspace.
+      const c = caseRes.case as unknown as CaseDetail
+      c.matter = caseRes.matter as CaseDetail['matter']
+      c.quotes = caseRes.quotes as CaseDetail['quotes']
+      c.bookings = caseRes.bookings as CaseDetail['bookings']
+      setCaseData(c)
+      const msgList = (msgRes.messages || []).map((m: Record<string, unknown>) => ({
+        id: String(m.id),
+        senderId: String(m.senderId || ''),
+        senderName: String((m.sender as Record<string, unknown>)?.profile?.displayName || (m.sender as Record<string, unknown>)?.profile?.name || ''),
+        senderRole: String((m.sender as Record<string, unknown>)?.role || ''),
+        body: String(m.body || ''),
+        createdAt: String(m.createdAt || ''),
+      })) as unknown as CaseMessage[]
+      setMessages(msgList)
+      const tlList = (tlRes.timeline || []).map((e: Record<string, unknown>) => ({
+        id: String(e.id),
+        type: String(e.eventType || e.type || ''),
+        description: String(e.eventType || e.description || ''),
+        createdAt: String(e.createdAt || ''),
+      })) as unknown as TimelineEvent[]
+      setTimeline(tlList)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load case')
     } finally {
@@ -147,6 +185,36 @@ export function ProfessionalCaseDetail() {
     }
   }
 
+  const handleProposeBooking = async (quoteId: string) => {
+    if (!bookingStartsAt) return
+    try {
+      setSubmittingBooking(true)
+      await apiPost(`/quotes/${quoteId}/booking`, {
+        startsAt: new Date(bookingStartsAt).toISOString(),
+        location: bookingLocation || undefined,
+      })
+      setBookingStartsAt('')
+      setBookingLocation('')
+      await fetchData()
+    } catch (err) {
+      // Booking proposal failed silently, same as the quote/proof handlers above
+    } finally {
+      setSubmittingBooking(false)
+    }
+  }
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      setCancellingBooking(true)
+      await apiPost(`/bookings/${bookingId}/cancel`)
+      await fetchData()
+    } catch (err) {
+      // Cancel failed silently
+    } finally {
+      setCancellingBooking(false)
+    }
+  }
+
   const handleSubmitProof = async () => {
     if (!caseId || !proofDescription.trim()) return
     try {
@@ -170,8 +238,7 @@ export function ProfessionalCaseDetail() {
       setSendingMessage(true)
       await apiPost(`/cases/${caseId}/messages`, { body: messageInput.trim() })
       setMessageInput('')
-      const msgRes = await apiGet<CaseMessage[]>(`/cases/${caseId}/messages`)
-      setMessages(Array.isArray(msgRes) ? msgRes : [])
+      await fetchData()
     } catch (err) {
       // Send failed
     } finally {
@@ -208,6 +275,11 @@ export function ProfessionalCaseDetail() {
   const showQuoteBuilder = ['MATCHING', 'QUOTE'].includes(status)
   const showProofSection = ['IN_PROGRESS', 'PROOF'].includes(status)
   const caseTitle = caseData.title || caseData.matter?.title || 'Untitled Case'
+  const acceptedQuote = caseData.quotes?.find((q) => q.status === 'ACCEPTED')
+  const showBookingSection = ['FUNDED', 'IN_PROGRESS'].includes(status) && !!acceptedQuote
+  const activeBooking = acceptedQuote
+    ? caseData.bookings?.find((b) => b.quoteId === acceptedQuote.id && b.status !== 'CANCELLED')
+    : undefined
 
   return (
     <div className="p-4 md:p-6">
@@ -351,6 +423,80 @@ export function ProfessionalCaseDetail() {
                   Send Quote
                 </Button>
               </div>
+            </Card>
+          )}
+
+          {/* Appointment / Booking */}
+          {showBookingSection && acceptedQuote && (
+            <Card className="p-4 md:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="size-4 text-[#1F7A5A]" />
+                <h2 className="text-sm font-semibold text-[#102A43]">Appointment</h2>
+              </div>
+              {activeBooking ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg border border-border/60 bg-muted/30">
+                    <p className="text-sm font-medium text-foreground">
+                      {activeBooking.startsAt
+                        ? new Date(activeBooking.startsAt).toLocaleString('en-NG', {
+                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                          })
+                        : 'Time to be confirmed'}
+                    </p>
+                    {activeBooking.location && (
+                      <p className="text-xs text-muted-foreground mt-1">{activeBooking.location}</p>
+                    )}
+                    <p className="text-xs mt-1 font-medium" style={{ color: activeBooking.confirmedAt ? '#1F7A5A' : '#8A5A0F' }}>
+                      {activeBooking.confirmedAt ? 'Confirmed by customer' : 'Awaiting customer confirmation'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={cancellingBooking}
+                    onClick={() => handleCancelBooking(activeBooking.id)}
+                  >
+                    {cancellingBooking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                    {activeBooking.confirmedAt ? 'Cancel appointment' : 'Withdraw proposed time'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                      Proposed Date &amp; Time
+                    </label>
+                    <Input
+                      type="datetime-local"
+                      value={bookingStartsAt}
+                      onChange={(e) => setBookingStartsAt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                      Location (optional)
+                    </label>
+                    <Input
+                      value={bookingLocation}
+                      onChange={(e) => setBookingLocation(e.target.value)}
+                      placeholder="e.g. Customer's address"
+                    />
+                  </div>
+                  <Button
+                    className="w-full bg-[#1F7A5A] hover:bg-[#1F7A5A]/90 text-white"
+                    disabled={submittingBooking || !bookingStartsAt}
+                    onClick={() => handleProposeBooking(acceptedQuote.id)}
+                  >
+                    {submittingBooking ? (
+                      <Loader2 className="size-4 animate-spin mr-2" />
+                    ) : (
+                      <Calendar className="size-4 mr-2" />
+                    )}
+                    Propose Appointment
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
 
