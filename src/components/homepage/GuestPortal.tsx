@@ -12,6 +12,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
   NEW: { label: 'Case Created', color: 'bg-[#F0F4F8] text-[#52606D]', icon: Clock, desc: 'Your case has been received. REZZO AI is analyzing your need.' },
   UNDERSTANDING: { label: 'AI Analyzing', color: 'bg-[#FEF5E7] text-[#B7791F]', icon: Search, desc: 'Our AI is understanding your problem and determining the best resolution path.' },
   CLARIFICATION: { label: 'Needs Clarification', color: 'bg-[#FEF5E7] text-[#B7791F]', icon: AlertCircle, desc: 'REZZO needs a bit more information to match you with the right professional.' },
+  CONFIRMATION: { label: 'Awaiting Your Confirmation', color: 'bg-[#FEF5E7] text-[#B7791F]', icon: AlertCircle, desc: 'REZZO has finished analyzing your case and is waiting for you to confirm its understanding.' },
   ROUTED: { label: 'Routed', color: 'bg-[#E8F0FE] text-[#2B6CB0]', icon: ArrowRight, desc: 'Your case has been routed to the right service category.' },
   MATCHING: { label: 'Finding Professionals', color: 'bg-[#E8F0FE] text-[#2B6CB0]', icon: Search, desc: 'We are matching you with the best verified professionals for your need.' },
   QUOTE: { label: 'Awaiting Quotes', color: 'bg-[#FEF7E0] text-[#E0A23A]', icon: Clock, desc: 'Professionals are reviewing your case and preparing quotes.' },

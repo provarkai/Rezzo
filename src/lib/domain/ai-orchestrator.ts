@@ -348,22 +348,13 @@ export async function handleOrchestrationResult(
       // Already transitioning
     }
   } else {
-    // High confidence, proceed to routing
+    // High confidence — show the customer what AI REZZO understood and wait
+    // for them to confirm or correct it before routing/matching (design
+    // spec §9: "Here's what I understand. Is this correct?").
     try {
       await transitionCase(
         caseId,
-        CASE_STATES.ROUTED,
-        'SYSTEM',
-        ROLES.SYSTEM
-      );
-    } catch {
-      // Already transitioning
-    }
-    // Then proceed to matching
-    try {
-      await transitionCase(
-        caseId,
-        CASE_STATES.MATCHING,
+        CASE_STATES.CONFIRMATION,
         'SYSTEM',
         ROLES.SYSTEM
       );

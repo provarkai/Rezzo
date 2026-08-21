@@ -150,6 +150,7 @@ function getEventIcon(type: string) {
   switch (type) {
     case 'CASE_CREATED': return '🆕'
     case 'AI_ORCHESTRATED': return '🤖'
+    case 'AI_UNDERSTANDING_READY': return '🧭'
     case 'MATCHED': return '🎯'
     case 'QUOTE_RECEIVED': return '📝'
     case 'QUOTE_ACCEPTED': return '✅'
@@ -186,6 +187,10 @@ export function CaseWorkspace() {
   // Message state
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+
+  // Confirm-understanding state
+  const [showCorrection, setShowCorrection] = useState(false)
+  const [correctionText, setCorrectionText] = useState('')
 
   const fetchCase = useCallback(async () => {
     if (!caseId) return
@@ -302,6 +307,30 @@ export function CaseWorkspace() {
 
   const handleBack = () => {
     setSelectedCaseId(null)
+  }
+
+  const handleConfirmUnderstanding = async (confirmed: boolean) => {
+    if (!confirmed && !correctionText.trim()) {
+      setShowCorrection(true)
+      return
+    }
+    setActionLoading('confirm')
+    try {
+      await apiPost(`/cases/${caseId}/confirm-understanding`, {
+        confirmed,
+        correction: confirmed ? undefined : correctionText.trim(),
+      })
+      toast.success(confirmed ? 'Thanks — finding matches now' : 'Got it, let me take another look')
+      setShowCorrection(false)
+      setCorrectionText('')
+      await refreshAll()
+    } catch (err) {
+      toast.error('Something went wrong', {
+        description: err instanceof Error ? err.message : 'Please try again',
+      })
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const handleAcceptQuote = async (quoteId: string) => {
@@ -537,6 +566,62 @@ export function CaseWorkspace() {
                       {matter.estimatedComplexity}
                     </span>
                   )}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* ===== CONFIRMATION: Customer confirms/corrects AI's understanding ===== */}
+          {status === 'CONFIRMATION' && (
+            <Card className="p-4 gap-3">
+              <p className="text-sm font-semibold text-[#102A43]">Is this correct?</p>
+              <p className="text-xs text-muted-foreground -mt-1.5">
+                Confirm what REZZO understood above, or tell us what's off so we can take another look.
+              </p>
+              {!showCorrection ? (
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 bg-[#1F7A5A] hover:bg-[#1F7A5A]/90 text-white rounded-xl h-11 text-sm font-semibold"
+                    disabled={actionLoading === 'confirm'}
+                    onClick={() => handleConfirmUnderstanding(true)}
+                  >
+                    {actionLoading === 'confirm' ? <Loader2 className="size-4 animate-spin" /> : 'Yes, that\'s right'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl h-11 text-sm font-semibold"
+                    disabled={actionLoading === 'confirm'}
+                    onClick={() => setShowCorrection(true)}
+                  >
+                    Not quite
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Textarea
+                    value={correctionText}
+                    onChange={(e) => setCorrectionText(e.target.value)}
+                    placeholder="What did REZZO get wrong or miss?"
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1 bg-[#1F7A5A] hover:bg-[#1F7A5A]/90 text-white rounded-xl h-11 text-sm font-semibold"
+                      disabled={actionLoading === 'confirm' || !correctionText.trim()}
+                      onClick={() => handleConfirmUnderstanding(false)}
+                    >
+                      {actionLoading === 'confirm' ? <Loader2 className="size-4 animate-spin" /> : 'Send correction'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl h-11 text-sm"
+                      disabled={actionLoading === 'confirm'}
+                      onClick={() => { setShowCorrection(false); setCorrectionText('') }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </Card>

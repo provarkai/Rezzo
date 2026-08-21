@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       db.professional.aggregate({ _avg: { trustScore: true } }),
       // Status breakdown
       Promise.all(
-        ['NEW', 'UNDERSTANDING', 'CLARIFICATION', 'ROUTED', 'MATCHING', 'QUOTE', 'ACCEPTED', 'PAYMENT', 'FUNDED', 'IN_PROGRESS', 'PROOF', 'CUSTOMER_REVIEW', 'COMPLETED', 'RESOLVED', 'CANCELLED', 'DISPUTED'].map(
+        ['NEW', 'UNDERSTANDING', 'CLARIFICATION', 'CONFIRMATION', 'ROUTED', 'MATCHING', 'QUOTE', 'ACCEPTED', 'PAYMENT', 'FUNDED', 'IN_PROGRESS', 'PROOF', 'CUSTOMER_REVIEW', 'COMPLETED', 'RESOLVED', 'CANCELLED', 'DISPUTED'].map(
           async (status) => {
             const count = await db.case.count({ where: { status } });
             return { status, count };

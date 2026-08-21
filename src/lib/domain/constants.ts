@@ -7,6 +7,7 @@ export const CASE_STATES = {
   NEW: 'NEW',
   UNDERSTANDING: 'UNDERSTANDING',
   CLARIFICATION: 'CLARIFICATION',
+  CONFIRMATION: 'CONFIRMATION',
   ROUTED: 'ROUTED',
   MATCHING: 'MATCHING',
   QUOTE: 'QUOTE',
@@ -43,6 +44,7 @@ export type Role = (typeof ROLES)[keyof typeof ROLES];
 export const CASE_EVENTS = {
   CASE_CREATED: 'CASE_CREATED',
   AI_UNDERSTANDING: 'AI_UNDERSTANDING',
+  AI_UNDERSTANDING_READY: 'AI_UNDERSTANDING_READY',
   CLARIFICATION_REQUESTED: 'CLARIFICATION_REQUESTED',
   ROUTE_SELECTED: 'ROUTE_SELECTED',
   MATCHES_GENERATED: 'MATCHES_GENERATED',
@@ -288,10 +290,16 @@ export const CASE_STATE_TRANSITIONS: StateTransition[] = [
   { from: 'NEW', to: 'UNDERSTANDING' },
   { from: 'NEW', to: 'CANCELLED' },
   { from: 'UNDERSTANDING', to: 'CLARIFICATION' },
+  { from: 'UNDERSTANDING', to: 'CONFIRMATION' },
   { from: 'UNDERSTANDING', to: 'ROUTED' },
   { from: 'UNDERSTANDING', to: 'CANCELLED' },
+  { from: 'CLARIFICATION', to: 'CONFIRMATION' },
   { from: 'CLARIFICATION', to: 'ROUTED' },
   { from: 'CLARIFICATION', to: 'CANCELLED' },
+  // Customer reviews AI REZZO's understanding before the case is routed.
+  { from: 'CONFIRMATION', to: 'ROUTED' },
+  { from: 'CONFIRMATION', to: 'UNDERSTANDING' }, // customer corrects, AI re-processes
+  { from: 'CONFIRMATION', to: 'CANCELLED' },
   { from: 'ROUTED', to: 'MATCHING' },
   { from: 'ROUTED', to: 'CANCELLED' },
   { from: 'MATCHING', to: 'QUOTE' },

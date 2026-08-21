@@ -144,6 +144,7 @@ export async function transitionCase(
   const eventMap: Partial<Record<CaseState, CaseEventType>> = {
     UNDERSTANDING: CASE_EVENTS.AI_UNDERSTANDING,
     CLARIFICATION: CASE_EVENTS.CLARIFICATION_REQUESTED,
+    CONFIRMATION: CASE_EVENTS.AI_UNDERSTANDING_READY,
     ROUTED: CASE_EVENTS.ROUTE_SELECTED,
     MATCHING: CASE_EVENTS.MATCHES_GENERATED,
     QUOTE: CASE_EVENTS.QUOTE_RECEIVED,
@@ -173,6 +174,52 @@ export async function transitionCase(
   }
 
   return updated;
+}
+
+// ============ CONFIRM AI UNDERSTANDING ============
+
+/**
+ * The customer's response to "Here's what I understand — is this correct?"
+ * (design spec §9). Confirming chains the case through ROUTED → MATCHING;
+ * correcting sends it back through UNDERSTANDING with the correction folded
+ * into the Need so AI REZZO re-processes it. Re-running the AI itself is the
+ * caller's job (case-engine doesn't import the AI orchestrator, to avoid a
+ * circular import — see POST /cases/[id]/confirm-understanding).
+ */
+export async function confirmUnderstanding(
+  caseId: string,
+  customerId: string,
+  confirmed: boolean,
+  correction?: string
+) {
+  const caseRecord = await db.case.findUnique({ where: { id: caseId }, include: { need: true } });
+  if (!caseRecord) throw new Error('Case not found');
+
+  if (confirmed) {
+    // transitionCase logs ROUTE_SELECTED/MATCHES_GENERATED itself via its
+    // event map, so there's nothing further to log here.
+    for (const state of [CASE_STATES.ROUTED, CASE_STATES.MATCHING] as CaseState[]) {
+      try {
+        await transitionCase(caseId, state, customerId, ROLES.CUSTOMER);
+      } catch {
+        // Already past this state
+      }
+    }
+    return db.case.findUnique({ where: { id: caseId } });
+  }
+
+  await transitionCase(caseId, CASE_STATES.UNDERSTANDING, customerId, ROLES.CUSTOMER);
+
+  if (correction?.trim() && caseRecord.needId) {
+    await db.need.update({
+      where: { id: caseRecord.needId },
+      data: {
+        rawInput: `${caseRecord.need?.rawInput || ''}\n\nCustomer correction: ${correction.trim()}`,
+      },
+    });
+  }
+
+  return db.case.findUnique({ where: { id: caseId } });
 }
 
 // ============ CASE CONTINUITY: FOLLOW-UP SCHEDULING ============
