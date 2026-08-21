@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { resolveDispute } from '@/lib/domain/payment-engine';
+import { logAdminAction } from '@/lib/domain/audit-service';
 import { z } from 'zod';
 
 // PRD §10.2 steps 5-7: admin reviews the assembled case (already available
@@ -38,6 +39,14 @@ export async function POST(
       parsed.data.resolutionCode,
       parsed.data.notes
     );
+
+    await logAdminAction({
+      actorId: auth.user.id,
+      action: `DISPUTE_RESOLVED_${parsed.data.outcome}`,
+      resourceType: 'Dispute',
+      resourceId: id,
+      metadata: { resolutionCode: parsed.data.resolutionCode || null, notes: parsed.data.notes || null },
+    });
 
     return NextResponse.json(successResponse({ dispute }));
   } catch (error) {

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
 import { reviewVerification } from '@/lib/domain/verification';
+import { logAdminAction } from '@/lib/domain/audit-service';
 import { z } from 'zod';
 
 const reviewSchema = z.object({
@@ -27,6 +28,14 @@ export async function POST(
     }
 
     const result = await reviewVerification(id, auth.user.id, parsed.data.status, parsed.data.notes);
+
+    await logAdminAction({
+      actorId: auth.user.id,
+      action: `VERIFICATION_${parsed.data.status}`,
+      resourceType: 'Professional',
+      resourceId: id,
+      metadata: { notes: parsed.data.notes || null },
+    });
 
     return NextResponse.json(successResponse({ professional: result }));
   } catch (error) {

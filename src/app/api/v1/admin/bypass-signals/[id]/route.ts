@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { logAdminAction } from '@/lib/domain/audit-service';
 import { z } from 'zod';
 
 // Ops reviews a signal; CONFIRMED (enforcement) is deliberately not an
@@ -36,6 +37,14 @@ export async function POST(
     const signal = await db.bypassSignal.update({
       where: { id },
       data: { status: parsed.data.status },
+    });
+
+    await logAdminAction({
+      actorId: auth.user.id,
+      action: `BYPASS_SIGNAL_${parsed.data.status}`,
+      resourceType: 'BypassSignal',
+      resourceId: id,
+      metadata: { caseId: existing.caseId, signalType: existing.signalType },
     });
 
     return NextResponse.json(successResponse({ signal }));

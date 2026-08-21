@@ -3,7 +3,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
-import { CASE_EVENTS, VERIFICATION_STATUSES, AVAILABILITY_STATUSES } from './constants';
+import { CASE_EVENTS, VERIFICATION_STATUSES, AVAILABILITY_STATUSES, MATCHING_WEIGHTS, VERIFICATION_TIER_BONUS } from './constants';
 import { addCaseEvent } from './case-engine';
 
 // ============ TYPES ============
@@ -109,7 +109,7 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
     }
 
     const maxPossibleMatches = Math.max(skillKeywords.length + requiredExpertise.length, 1);
-    const skillScore = Math.min(40, (skillMatchCount / maxPossibleMatches) * 40);
+    const skillScore = Math.min(MATCHING_WEIGHTS.SKILL_RELEVANCE, (skillMatchCount / maxPossibleMatches) * MATCHING_WEIGHTS.SKILL_RELEVANCE);
     breakdown.skillRelevance = Math.round(skillScore * 10) / 10;
     score += skillScore;
 
@@ -118,42 +118,29 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
       continue;
     }
 
-    // 2. Trust score (0-25 points)
-    const trustScore = Math.min(25, (pro.trustScore / 100) * 25);
+    // 2. Trust score
+    const trustScore = Math.min(MATCHING_WEIGHTS.TRUST_SCORE, (pro.trustScore / 100) * MATCHING_WEIGHTS.TRUST_SCORE);
     breakdown.trustScore = Math.round(trustScore * 10) / 10;
     score += trustScore;
 
-    // 3. Location match (0-20 points)
+    // 3. Location match
     let locationScore = 0;
     const proServiceArea = (pro.serviceArea || '').toLowerCase();
     const caseLoc = (caseLocation || '').toLowerCase();
     const caseSt = (caseState || '').toLowerCase();
 
     if (proServiceArea && (caseLoc.includes(proServiceArea) || proServiceArea.includes(caseLoc))) {
-      locationScore = 20;
+      locationScore = MATCHING_WEIGHTS.LOCATION_MATCH; // exact area match
     } else if (proServiceArea && (caseSt.includes(proServiceArea) || proServiceArea.includes(caseSt))) {
-      locationScore = 15;
+      locationScore = MATCHING_WEIGHTS.LOCATION_MATCH * 0.75; // same state
     } else {
-      locationScore = 5; // base score for being available
+      locationScore = MATCHING_WEIGHTS.LOCATION_MATCH * 0.25; // base score for being available
     }
     breakdown.locationMatch = Math.round(locationScore * 10) / 10;
     score += locationScore;
 
-    // 4. Verification tier bonus (0-15 points)
-    let verificationBonus = 0;
-    switch (pro.verificationStatus) {
-      case VERIFICATION_STATUSES.EXPERT:
-        verificationBonus = 15;
-        break;
-      case VERIFICATION_STATUSES.TRUSTED:
-        verificationBonus = 12;
-        break;
-      case VERIFICATION_STATUSES.VERIFIED:
-        verificationBonus = 8;
-        break;
-      default:
-        verificationBonus = 0;
-    }
+    // 4. Verification tier bonus
+    const verificationBonus = VERIFICATION_TIER_BONUS[pro.verificationStatus] ?? 0;
     breakdown.verificationBonus = verificationBonus;
     score += verificationBonus;
 

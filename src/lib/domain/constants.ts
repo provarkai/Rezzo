@@ -277,6 +277,28 @@ export const COMMISSION_REVERSAL_STATUSES = {
 } as const;
 
 // ============ FINANCIAL CONSTANTS ============
+// ============ MATCHING WEIGHTS ============
+// Single source of truth for matching-engine.ts's scoring — kept here
+// (rather than as magic numbers inline) so the admin Trust Rules view can
+// display the actual live weights instead of a hand-copied, driftable
+// duplicate.
+export const MATCHING_WEIGHTS = {
+  SKILL_RELEVANCE: 40,
+  TRUST_SCORE: 25,
+  LOCATION_MATCH: 20,
+  VERIFICATION_TIER: 15,
+} as const;
+
+export const VERIFICATION_TIER_BONUS: Record<string, number> = {
+  EXPERT: 15,
+  TRUSTED: 12,
+  VERIFIED: 8,
+  PENDING: 0,
+  NEEDS_INFO: 0,
+  SUSPENDED: 0,
+  REVOKED: 0,
+};
+
 export const COMMISSION_RATE = 0.10;
 export const CURRENCY = 'NGN';
 export const CASE_NUMBER_PREFIX = 'RZ';

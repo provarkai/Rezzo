@@ -8,6 +8,11 @@ import { AdminProfessionalQueue } from './AdminProfessionalQueue'
 import { AdminPayments } from './AdminPayments'
 import { AdminBypassSignals } from './AdminBypassSignals'
 import { AdminDisputes } from './AdminDisputes'
+import { AdminCategories } from './AdminCategories'
+import { AdminTrustRules } from './AdminTrustRules'
+import { AdminKnowledge } from './AdminKnowledge'
+import { AdminAudit } from './AdminAudit'
+import { AdminSettings } from './AdminSettings'
 import {
   LayoutDashboard,
   Briefcase,
@@ -18,6 +23,10 @@ import {
   BarChart3,
   Settings,
   BadgeCheck,
+  Tag,
+  ShieldCheck,
+  BookOpen,
+  ScrollText,
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -27,6 +36,10 @@ const SIDEBAR_ITEMS = [
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'ai-oversight', label: 'Trust & Protection', icon: ShieldAlert },
+  { id: 'categories', label: 'Categories', icon: Tag },
+  { id: 'trust-rules', label: 'Trust Rules', icon: ShieldCheck },
+  { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
+  { id: 'audit', label: 'Audit', icon: ScrollText },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const
@@ -126,8 +139,12 @@ export function AdminApp() {
             {adminTab === 'disputes' && <AdminDisputes />}
             {adminTab === 'payments' && <AdminPayments />}
             {adminTab === 'ai-oversight' && <AdminBypassSignals />}
+            {adminTab === 'categories' && <AdminCategories />}
+            {adminTab === 'trust-rules' && <AdminTrustRules />}
+            {adminTab === 'knowledge' && <AdminKnowledge />}
+            {adminTab === 'audit' && <AdminAudit />}
             {adminTab === 'analytics' && <AdminOverview />}
-            {adminTab === 'settings' && <AdminSettingsPlaceholder />}
+            {adminTab === 'settings' && <AdminSettings />}
           </div>
         </main>
       </div>
@@ -142,30 +159,19 @@ function AdminMobileTabs({
   currentTab: string
   setTab: (tab: string) => void
 }) {
-  const mobileItems = SIDEBAR_ITEMS.slice(0, 5)
+  // Every tab, not just the first 5 — that slice used to silently make
+  // Trust & Protection, Analytics and Settings unreachable on mobile.
   return (
     <select
       value={currentTab}
       onChange={(e) => setTab(e.target.value)}
       className="bg-white/10 border border-white/20 text-white text-xs rounded-md px-2 py-1.5"
     >
-      {mobileItems.map((item) => (
+      {SIDEBAR_ITEMS.map((item) => (
         <option key={item.id} value={item.id} className="text-[#102A43]">
           {item.label}
         </option>
       ))}
     </select>
-  )
-}
-
-function AdminSettingsPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <Settings className="size-10 text-muted-foreground/30 mb-3" />
-      <h2 className="text-sm font-semibold text-[#102A43] mb-1">Settings</h2>
-      <p className="text-xs text-muted-foreground max-w-xs">
-        Platform configuration, fee management, and system settings. Coming in V2.
-      </p>
-    </div>
   )
 }
