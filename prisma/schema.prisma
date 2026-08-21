@@ -1,0 +1,513 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ ENUMS (as String constants in SQLite) ============
+
+// ============ CORE IDENTITY ============
+
+model User {
+  id        String   @id @default(cuid())
+  role      String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, OPS, SUPPORT, SYSTEM
+  phone     String?
+  email     String?
+  password  String?
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile         Profile?
+  professional    Professional?
+  needs           Need[]
+  cases           Case[]
+  messages        Message[]
+  documents       Document[]
+  reviews         Review[]
+  disputesOpened  Dispute[]  @relation("DisputeOpener")
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  aiJobs          AiJob[]    @relation("AiJobOwner")
+  subscriptions    Subscription[]
+  caseParticipants  CaseParticipant[] @relation("CaseParticipants")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String?
+  avatar      String?
+  location    String?
+  state       String?
+  preferences Json?    
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ NEED / MATTER ============
+
+model Need {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  rawInput      String
+  desiredOutcome String?
+  createdAt     DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id])
+ matter Matter?
+  cases  Case[]
+}
+
+model Matter {
+  id          String   @id @default(cuid())
+  needId      String   @unique
+  summary     String?
+  categoryId  String?
+  urgency     String   @default("NORMAL") // NORMAL, HIGH, URGENT
+  confidence  Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  need     Need  @relation(fields: [needId], references: [id])
+  cases    Case[]
+}
+
+// ============ CASE ============
+
+model Case {
+  id              String   @id @default(cuid())
+  caseNumber      String   @unique
+  userId          String
+  needId          String?
+  matterId        String?
+  status          String   @default("NEW") // NEW, UNDERSTANDING, CLARIFICATION, ROUTED, MATCHING, QUOTE, ACCEPTED, PAYMENT, FUNDED, IN_PROGRESS, PROOF, CUSTOMER_REVIEW, COMPLETED, RESOLVED, DECLINED, CANCELLED, DISPUTED, ESCALATED, REFUNDED
+  priority        String   @default("NORMAL")
+  location        String?
+  state           String?
+  routeJson       Json?    
+  riskLevel       String   @default("NORMAL") // NORMAL, ELEVATED, HIGH
+  resolutionCriteria Json?  
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id])
+  need              Need?             @relation(fields: [needId], references: [id])
+  matter            Matter?           @relation(fields: [matterId], references: [id])
+  events            CaseEvent[]
+  participants      CaseParticipant[]
+  quotes            Quote[]
+  bookings          Booking[]
+  payments          Payment[]
+  proofItems        ProofItem[]
+  messages          Message[]
+  documents         Document[]
+  reviews           Review[]
+  disputes          Dispute[]
+  aiJobs            AiJob[]
+  notifications     Notification[]
+}
+
+model CaseEvent {
+  id         String   @id @default(cuid())
+  caseId     String
+  eventType  String   // CASE_CREATED, AI_UNDERSTANDING, CLARIFICATION_REQUESTED, etc.
+  actorType  String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, AI_SYSTEM
+  actorId    String?
+  payload    Json?    
+  createdAt  DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model CaseParticipant {
+  id          String   @id @default(cuid())
+  caseId      String
+  userId      String
+  role        String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, SUPPORT, ADMIN
+  permissions Json?    
+  joinedAt    DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation("CaseParticipants", fields: [userId], references: [id])
+
+  @@unique([caseId, userId])
+}
+
+// ============ PROFESSIONAL ============
+
+model Professional {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  bio              String?
+  serviceArea      String?
+  availabilityStatus String @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  trustScore       Float    @default(0)
+  verificationStatus String @default("PENDING") // PENDING, NEEDS_INFO, VERIFIED, TRUSTED, EXPERT, SUSPENDED, REVOKED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials  ProfessionalCredential[]
+  skills       ProfessionalSkill[]
+  services     Service[]
+  quotes       Quote[]
+  bookings     Booking[]
+  reviews      Review[]
+  verifications VerificationReview[]
+  payouts      Payout[]
+}
+
+model ProfessionalCredential {
+  id            String    @id @default(cuid())
+  professionalId String
+  type          String    // IDENTITY, LICENSE, CERTIFICATE, DEGREE
+  issuer        String?
+  reference     String?
+  expiresAt     DateTime?
+  status        String    @default("PENDING") // PENDING, VERIFIED, REJECTED
+  createdAt     DateTime  @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+}
+
+model ProfessionalSkill {
+  id            String   @id @default(cuid())
+  professionalId String
+  categoryId    String?
+  name          String
+  level         String   @default("INTERMEDIATE") // BEGINNER, INTERMEDIATE, ADVANCED, EXPERT
+  createdAt     DateTime @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+}
+
+model VerificationReview {
+  id            String   @id @default(cuid())
+  professionalId String
+  reviewerId    String?
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, NEEDS_INFO
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id])
+}
+
+// ============ SERVICES & PRICING ============
+
+model Service {
+  id             String   @id @default(cuid())
+  professionalId String
+  categoryId     String?
+  name           String
+  description    String?
+  pricingType    String   @default("QUOTE_REQUIRED") // FIXED, STARTING_FROM, QUOTE_REQUIRED, HOURLY, MILESTONE
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  prices       ServicePrice[]
+  quotes       Quote[]
+}
+
+model ServicePrice {
+  id           String   @id @default(cuid())
+  serviceId    String
+  amount       Float
+  currency     String   @default("NGN")
+  unit         String?  // per_hour, per_session, flat
+  effectiveFrom DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+// ============ QUOTES & BOOKINGS ============
+
+model Quote {
+  id             String    @id @default(cuid())
+  caseId         String
+  professionalId String
+  serviceId      String?
+  scope          String?
+  totalAmount    Float
+  currency       String    @default("NGN")
+  timeline       String?
+  milestonesJson Json?     
+  terms          String?
+  status         String    @default("SENT") // SENT, ACCEPTED, DECLINED, EXPIRED
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  case         Case        @relation(fields: [caseId], references: [id])
+  professional  Professional @relation(fields: [professionalId], references: [id])
+  service      Service?    @relation(fields: [serviceId], references: [id])
+  booking      Booking?
+  milestones   Milestone[]
+  payments     Payment[]
+}
+
+model Booking {
+  id             String   @id @default(cuid())
+  caseId         String
+  professionalId String
+  quoteId        String?  @unique
+  startsAt       DateTime?
+  endsAt         DateTime?
+  location       String?
+  status         String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  case        Case        @relation(fields: [caseId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+  quote       Quote?      @relation(fields: [quoteId], references: [id])
+}
+
+// ============ PAYMENTS ============
+
+model Payment {
+  id               String    @id @default(cuid())
+  caseId           String
+  quoteId          String?
+  provider         String    @default("MOCK")
+  providerReference String?
+  grossAmount      Float
+  commissionAmount Float    @default(0)
+  netAmount        Float
+  currency         String    @default("NGN")
+  status           String    @default("PENDING") // PENDING, SUCCESS, FAILED, FUNDED, PARTIALLY_FUNDED, REFUND_PENDING, REFUNDED, PAYOUT_PENDING, PAID_OUT, CHARGEBACK
+  idempotencyKey   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  case    Case     @relation(fields: [caseId], references: [id])
+  quote   Quote?   @relation(fields: [quoteId], references: [id])
+  payouts Payout[]
+}
+
+model Payout {
+  id               String   @id @default(cuid())
+  paymentId        String
+  professionalId   String
+  amount           Float
+  providerReference String?
+  status           String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  payment     Payment     @relation(fields: [paymentId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+}
+
+// ============ MILESTONES & PROOF ============
+
+model Milestone {
+  id          String   @id @default(cuid())
+  quoteId     String
+  title       String
+  amount      Float
+  sequence    Int
+  status      String   @default("PENDING") // PENDING, IN_PROGRESS, SUBMITTED, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quote      Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  proofItems ProofItem[]
+}
+
+model ProofItem {
+  id          String   @id @default(cuid())
+  caseId      String
+  milestoneId String?
+  type        String   @default("PHOTO") // PHOTO, VIDEO, DOCUMENT, REPORT
+  storageKey  String?
+  description String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+
+  case      Case      @relation(fields: [caseId], references: [id])
+  milestone Milestone? @relation(fields: [milestoneId], references: [id])
+}
+
+// ============ DOCUMENTS & VAULT ============
+
+model Document {
+  id           String    @id @default(cuid())
+  ownerUserId  String
+  caseId       String?
+  storageKey   String?
+  type         String?
+  name         String?
+  metadataJson Json?     
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  owner       User                 @relation(fields: [ownerUserId], references: [id])
+  case        Case?                @relation(fields: [caseId], references: [id])
+  permissions DocumentPermission[]
+}
+
+model DocumentPermission {
+  id              String    @id @default(cuid())
+  documentId      String
+  caseId          String?
+  recipientUserId String?
+  scope           String    @default("VIEW") // VIEW, DOWNLOAD, UPLOAD_RELATED, FULL_CASE_DOCUMENT
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+// ============ MESSAGES ============
+
+model Message {
+  id           String   @id @default(cuid())
+  caseId       String
+  senderId     String
+  channel      String   @default("APP") // APP, WHATSAPP, EMAIL
+  body         String?
+  attachmentsJson Json?  
+  createdAt    DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id])
+  sender User   @relation(fields: [senderId], references: [id])
+  @@index([caseId])
+}
+
+// ============ REVIEWS ============
+
+model Review {
+  id             String   @id @default(cuid())
+  caseId         String
+  customerId     String
+  professionalId String
+  rating         Int
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  case        Case        @relation(fields: [caseId], references: [id])
+  customer    User        @relation(fields: [customerId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+
+  @@unique([caseId, customerId])
+}
+
+// ============ DISPUTES ============
+
+model Dispute {
+  id             String   @id @default(cuid())
+  caseId         String
+  openedBy       String
+  reason         String?
+  status         String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  resolutionCode String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  case       Case @relation(fields: [caseId], references: [id])
+  openedByUser User @relation("DisputeOpener", fields: [openedBy], references: [id])
+}
+
+// ============ AI ============
+
+model AiJob {
+  id            String   @id @default(cuid())
+  caseId        String?
+  ownerId       String?
+  agentName     String?
+  objective     String?
+  risk          String   @default("NORMAL")
+  confidence    Float    @default(0)
+  status        String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, ESCALATED
+  outputJson    Json?    
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  case    Case?   @relation(fields: [caseId], references: [id])
+  owner   User?   @relation("AiJobOwner", fields: [ownerId], references: [id])
+  toolCalls AiToolCall[]
+}
+
+model AiToolCall {
+  id          String   @id @default(cuid())
+  aiJobId     String
+  toolName    String
+  inputMeta   Json?    
+  outputMeta  Json?    
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  aiJob AiJob @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+}
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  caseId      String?
+  channel     String   @default("PUSH")
+  type        String
+  status      String   @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
+  payloadJson Json?    
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  case Case? @relation(fields: [caseId], references: [id])
+}
+
+// ============ KNOWLEDGE / GOVERNMENT ============
+
+model KnowledgeSource {
+  id             String   @id @default(cuid())
+  category       String?
+  authorityLevel String   @default("C") // A=Official, B=Approved professional, C=General
+  url            String?
+  title          String?
+  lastChecked    DateTime?
+  active         Boolean  @default(true)
+  contentJson    Json?    
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ============ AUDIT ============
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorType    String   // USER, ADMIN, AI_SYSTEM
+  actorId      String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadataJson Json?    
+  createdAt    DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+}
+
+// ============ SUBSCRIPTIONS (future) ============
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  plan      String   @default("FREE")
+  status    String   @default("ACTIVE")
+  startedAt DateTime @default(now())
+  expiresAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
