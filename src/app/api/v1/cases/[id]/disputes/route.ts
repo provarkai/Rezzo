@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { successResponse, errorResponse, ROLES } from '@/lib/domain/constants';
 import { openDispute } from '@/lib/domain/case-engine';
+import { notify } from '@/lib/domain/notification-service';
 import { z } from 'zod';
 
 const disputeSchema = z.object({
@@ -24,7 +26,44 @@ export async function POST(
       return NextResponse.json(errorResponse('VALIDATION_ERROR', msg), { status: 400 });
     }
 
-    const dispute = await openDispute(id, auth.user.id, parsed.data.reason);
+    // Only the case owner, the assigned professional, or an admin can open
+    // a dispute — otherwise any logged-in user could disrupt someone
+    // else's case by ID.
+    const caseRecord = await db.case.findUnique({
+      where: { id },
+      include: { quotes: { where: { status: 'ACCEPTED' }, include: { professional: true } } },
+    });
+    if (!caseRecord) {
+      return NextResponse.json(errorResponse('NOT_FOUND', 'Case not found'), { status: 404 });
+    }
+    const isOwner = caseRecord.userId === auth.user.id;
+    const isAssignedProfessional = caseRecord.quotes[0]?.professional?.userId === auth.user.id;
+    if (!isOwner && !isAssignedProfessional && auth.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        errorResponse('FORBIDDEN', 'You do not have access to this case'),
+        { status: 403 }
+      );
+    }
+    const actorType = isOwner ? ROLES.CUSTOMER : isAssignedProfessional ? ROLES.PROFESSIONAL : ROLES.ADMIN;
+
+    const dispute = await openDispute(id, auth.user.id, parsed.data.reason, actorType);
+
+    try {
+      // Notify whichever side didn't open it.
+      const professionalUserId = caseRecord.quotes[0]?.professional?.userId;
+      const notifyUserId = isOwner ? professionalUserId : caseRecord.userId;
+      if (notifyUserId) {
+        await notify({
+          userId: notifyUserId,
+          caseId: id,
+          type: 'DISPUTE_OPENED',
+          title: `Dispute opened — ${caseRecord.caseNumber}`,
+          body: parsed.data.reason,
+        });
+      }
+    } catch {
+      // Notification is best-effort
+    }
 
     return NextResponse.json(successResponse({ dispute }), { status: 201 });
   } catch (error) {

@@ -13,6 +13,7 @@ import {
   FOLLOWUP_STATUSES,
   PROTECTION_BENEFIT_TYPES,
   PROTECTION_BENEFIT_STATUSES,
+  DISPUTE_STATUSES,
   type CaseState,
   type CaseEventType,
 } from './constants';
@@ -615,6 +616,15 @@ export async function customerApproveResolution(
   const caseRecord = await db.case.findUnique({ where: { id: caseId } });
   if (!caseRecord) throw new Error('Case not found');
 
+  // PRD §12.3: "Do not mark Case resolved while material financial dispute
+  // is open." A dispute already RESOLVED or CLOSED doesn't block this.
+  const openDisputeCount = await db.dispute.count({
+    where: { caseId, status: { in: [DISPUTE_STATUSES.OPEN, DISPUTE_STATUSES.UNDER_REVIEW] } },
+  });
+  if (openDisputeCount > 0) {
+    throw new Error('This case has an open dispute — it must be resolved first');
+  }
+
   // Chain through any remaining states to reach RESOLVED
   const stateChain: Array<[string, string, string]> = [
     ['IN_PROGRESS', 'PROFESSIONAL', CASE_EVENTS.SERVICE_STARTED],
@@ -649,24 +659,69 @@ export async function customerApproveResolution(
 export async function openDispute(
   caseId: string,
   openedBy: string,
-  reason?: string
+  reason?: string,
+  actorType: string = ROLES.CUSTOMER
 ) {
   const caseRecord = await db.case.findUnique({ where: { id: caseId } });
   if (!caseRecord) throw new Error('Case not found');
+
+  const existing = await db.dispute.count({
+    where: { caseId, status: { in: [DISPUTE_STATUSES.OPEN, DISPUTE_STATUSES.UNDER_REVIEW] } },
+  });
+  if (existing > 0) {
+    throw new Error('This case already has an open dispute');
+  }
 
   const dispute = await db.dispute.create({
     data: {
       caseId,
       openedBy,
       reason: reason || null,
-      status: 'OPEN',
+      status: DISPUTE_STATUSES.OPEN,
     },
   });
 
   // Transition case to DISPUTED
-  await transitionCase(caseId, 'DISPUTED' as CaseState, openedBy, ROLES.CUSTOMER);
+  await transitionCase(caseId, 'DISPUTED' as CaseState, openedBy, actorType);
 
   return dispute;
+}
+
+// ============ RESPOND TO DISPUTE (professional) ============
+
+export async function respondToDispute(
+  disputeId: string,
+  professionalUserId: string,
+  response: string
+) {
+  const dispute = await db.dispute.findUnique({
+    where: { id: disputeId },
+    include: { case: { include: { quotes: { where: { status: 'ACCEPTED' }, include: { professional: true } } } } },
+  });
+  if (!dispute) throw new Error('Dispute not found');
+
+  const assignedProfessional = dispute.case.quotes[0]?.professional;
+  if (!assignedProfessional || assignedProfessional.userId !== professionalUserId) {
+    throw new Error('You are not the professional assigned to this case');
+  }
+  if (![DISPUTE_STATUSES.OPEN, DISPUTE_STATUSES.UNDER_REVIEW].includes(dispute.status as 'OPEN' | 'UNDER_REVIEW')) {
+    throw new Error(`Dispute is already ${dispute.status}`);
+  }
+
+  const updated = await db.dispute.update({
+    where: { id: disputeId },
+    data: {
+      professionalResponse: response,
+      professionalRespondedAt: new Date(),
+      status: DISPUTE_STATUSES.UNDER_REVIEW,
+    },
+  });
+
+  await addCaseEvent(dispute.caseId, CASE_EVENTS.DISPUTE_RESPONSE_SUBMITTED, ROLES.PROFESSIONAL, professionalUserId, {
+    disputeId,
+  });
+
+  return updated;
 }
 
 // ============ SUBMIT REVIEW ============

@@ -60,6 +60,8 @@ export const CASE_EVENTS = {
   CASE_COMPLETED: 'CASE_COMPLETED',
   CASE_RESOLVED: 'CASE_RESOLVED',
   DISPUTE_OPENED: 'DISPUTE_OPENED',
+  DISPUTE_RESPONSE_SUBMITTED: 'DISPUTE_RESPONSE_SUBMITTED',
+  DISPUTE_RESOLVED: 'DISPUTE_RESOLVED',
   ESCALATED: 'ESCALATED',
   CASE_CANCELLED: 'CASE_CANCELLED',
 } as const;
@@ -169,6 +171,17 @@ export const DISPUTE_STATUSES = {
   UNDER_REVIEW: 'UNDER_REVIEW',
   RESOLVED: 'RESOLVED',
   CLOSED: 'CLOSED',
+} as const;
+
+// What an admin's dispute review can decide (PRD §10.2/§12.3). V1 doesn't
+// model a specific partial-refund amount — PARTIAL_REFUND just records that
+// outcome/notes; moving a specific amount is a manual step in the payment
+// provider's dashboard until that's built.
+export const DISPUTE_OUTCOMES = {
+  REFUND: 'REFUND',
+  PARTIAL_REFUND: 'PARTIAL_REFUND',
+  RELEASE_PAYOUT: 'RELEASE_PAYOUT',
+  DISMISSED: 'DISMISSED',
 } as const;
 
 export const KNOWLEDGE_AUTHORITY_LEVELS = {

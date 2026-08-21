@@ -21,6 +21,7 @@ import {
   FileText,
   Upload,
   Calendar,
+  AlertCircle,
 } from 'lucide-react'
 
 interface CaseMessage {
@@ -71,6 +72,14 @@ interface CaseDetail {
     confirmedAt?: string
     quoteId?: string
   }>
+  disputes?: Array<{
+    id: string
+    reason?: string
+    status: string
+    professionalResponse?: string
+    outcome?: string
+    resolutionNotes?: string
+  }>
 }
 
 export function ProfessionalCaseDetail() {
@@ -98,6 +107,10 @@ export function ProfessionalCaseDetail() {
   const [submittingBooking, setSubmittingBooking] = useState(false)
   const [cancellingBooking, setCancellingBooking] = useState(false)
 
+  // Dispute response state
+  const [disputeResponse, setDisputeResponse] = useState('')
+  const [submittingDisputeResponse, setSubmittingDisputeResponse] = useState(false)
+
   // Proof form state
   const [proofDescription, setProofDescription] = useState('')
   const [proofType, setProofType] = useState('COMPLETION')
@@ -114,7 +127,7 @@ export function ProfessionalCaseDetail() {
       setLoading(true)
       setError(null)
       const [caseRes, msgRes, tlRes] = await Promise.all([
-        apiGet<{ case: Record<string, unknown>; matter?: Record<string, unknown>; quotes?: Record<string, unknown>[]; bookings?: Record<string, unknown>[] }>(`/cases/${caseId}`),
+        apiGet<{ case: Record<string, unknown>; matter?: Record<string, unknown>; quotes?: Record<string, unknown>[]; bookings?: Record<string, unknown>[]; disputes?: Record<string, unknown>[] }>(`/cases/${caseId}`),
         apiGet<{ messages?: Record<string, unknown>[] }>(`/cases/${caseId}/messages`).catch(() => ({ messages: [] })),
         apiGet<{ timeline?: Record<string, unknown>[] }>(`/cases/${caseId}/timeline`).catch(() => ({ timeline: [] })),
       ])
@@ -125,6 +138,7 @@ export function ProfessionalCaseDetail() {
       c.matter = caseRes.matter as CaseDetail['matter']
       c.quotes = caseRes.quotes as CaseDetail['quotes']
       c.bookings = caseRes.bookings as CaseDetail['bookings']
+      c.disputes = caseRes.disputes as CaseDetail['disputes']
       setCaseData(c)
       const msgList = (msgRes.messages || []).map((m: Record<string, unknown>) => ({
         id: String(m.id),
@@ -212,6 +226,20 @@ export function ProfessionalCaseDetail() {
       // Cancel failed silently
     } finally {
       setCancellingBooking(false)
+    }
+  }
+
+  const handleRespondToDispute = async (disputeId: string) => {
+    if (disputeResponse.trim().length < 5) return
+    try {
+      setSubmittingDisputeResponse(true)
+      await apiPost(`/disputes/${disputeId}/respond`, { response: disputeResponse.trim() })
+      setDisputeResponse('')
+      await fetchData()
+    } catch (err) {
+      // Response failed silently, same as the other handlers above
+    } finally {
+      setSubmittingDisputeResponse(false)
     }
   }
 
@@ -342,6 +370,47 @@ export function ProfessionalCaseDetail() {
               </p>
             )}
           </Card>
+
+          {/* Dispute — PRD §10.2 step 4: "Professional submits response/evidence" */}
+          {(() => {
+            const activeDispute = caseData.disputes?.find((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW')
+            if (!activeDispute) return null
+            return (
+              <Card className="p-4 md:p-6 border-rezzo-danger/30 bg-rezzo-danger/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertCircle className="size-4 text-rezzo-danger" />
+                  <h2 className="text-sm font-semibold text-rezzo-danger">Dispute Opened</h2>
+                </div>
+                {activeDispute.reason && (
+                  <p className="text-sm text-foreground mb-3">{activeDispute.reason}</p>
+                )}
+                {activeDispute.professionalResponse ? (
+                  <div className="p-3 rounded-lg border border-border/60 bg-muted/30">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Your response</p>
+                    <p className="text-sm text-foreground">{activeDispute.professionalResponse}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={disputeResponse}
+                      onChange={(e) => setDisputeResponse(e.target.value)}
+                      placeholder="Explain your side — scope delivered, evidence, timeline..."
+                      rows={3}
+                    />
+                    <Button
+                      size="sm"
+                      className="bg-[#102A43] hover:bg-[#102A43]/90 text-white"
+                      disabled={submittingDisputeResponse || disputeResponse.trim().length < 5}
+                      onClick={() => handleRespondToDispute(activeDispute.id)}
+                    >
+                      {submittingDisputeResponse ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                      Submit response
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )
+          })()}
 
           {/* Quote Builder */}
           {showQuoteBuilder && (

@@ -102,6 +102,16 @@ interface Booking {
   confirmedAt?: string
 }
 
+interface Dispute {
+  id: string
+  reason?: string
+  status: string
+  professionalResponse?: string
+  outcome?: string
+  resolutionNotes?: string
+  createdAt: string
+}
+
 interface CaseDetail {
   id: string
   caseNumber: string
@@ -130,6 +140,7 @@ interface CaseDetail {
   payments?: Payment[]
   proofs?: Proof[]
   bookings?: Booking[]
+  disputes?: Dispute[]
   review?: {
     id: string
     rating: number
@@ -173,6 +184,8 @@ function getEventIcon(type: string) {
     case 'PROOF_SUBMITTED': return '📸'
     case 'RESOLVED': return '🎉'
     case 'DISPUTE_OPENED': return '⚠️'
+    case 'DISPUTE_RESPONSE_SUBMITTED': return '💬'
+    case 'DISPUTE_RESOLVED': return '🧾'
     default: return '📌'
   }
 }
@@ -204,12 +217,17 @@ export function CaseWorkspace() {
   const [showCorrection, setShowCorrection] = useState(false)
   const [correctionText, setCorrectionText] = useState('')
 
+  // Dispute form state
+  const [showDisputeForm, setShowDisputeForm] = useState(false)
+  const [disputeReason, setDisputeReason] = useState('')
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false)
+
   const fetchCase = useCallback(async () => {
     if (!caseId) return
     try {
       setLoading(true)
       setError(null)
-      const raw = await apiGet<{ case: Record<string, unknown>; need?: Record<string, unknown>; matter?: Record<string, unknown>; events?: Record<string, unknown>[]; quotes?: Record<string, unknown>[]; payments?: Record<string, unknown>[]; proofItems?: Record<string, unknown>[]; bookings?: Record<string, unknown>[]; messages?: Record<string, unknown>[]; reviews?: Record<string, unknown>[] }>(`/cases/${caseId}`)
+      const raw = await apiGet<{ case: Record<string, unknown>; need?: Record<string, unknown>; matter?: Record<string, unknown>; events?: Record<string, unknown>[]; quotes?: Record<string, unknown>[]; payments?: Record<string, unknown>[]; proofItems?: Record<string, unknown>[]; bookings?: Record<string, unknown>[]; messages?: Record<string, unknown>[]; reviews?: Record<string, unknown>[]; disputes?: Record<string, unknown>[] }>(`/cases/${caseId}`)
       // Flatten the nested response into CaseDetail shape
       const c = raw.case as unknown as CaseDetail
       c.need = raw.need as CaseDetail['need']
@@ -265,6 +283,15 @@ export function CaseWorkspace() {
         status: String(b.status || 'SCHEDULED'),
         confirmedAt: b.confirmedAt ? String(b.confirmedAt) : undefined,
       })) as unknown as CaseDetail['bookings']
+      c.disputes = (raw.disputes || []).map((d: Record<string, unknown>) => ({
+        id: String(d.id),
+        reason: d.reason ? String(d.reason) : undefined,
+        status: String(d.status || 'OPEN'),
+        professionalResponse: d.professionalResponse ? String(d.professionalResponse) : undefined,
+        outcome: d.outcome ? String(d.outcome) : undefined,
+        resolutionNotes: d.resolutionNotes ? String(d.resolutionNotes) : undefined,
+        createdAt: String(d.createdAt || ''),
+      })) as unknown as CaseDetail['disputes']
       setCaseData(c)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load case')
@@ -427,6 +454,24 @@ export function CaseWorkspace() {
       })
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const handleOpenDispute = async () => {
+    if (!disputeReason.trim() || disputeReason.trim().length < 5) return
+    setDisputeSubmitting(true)
+    try {
+      await apiPost(`/cases/${caseId}/disputes`, { reason: disputeReason.trim() })
+      toast.success('Dispute opened — REZZO will review it')
+      setShowDisputeForm(false)
+      setDisputeReason('')
+      await refreshAll()
+    } catch (err) {
+      toast.error('Could not open the dispute', {
+        description: err instanceof Error ? err.message : 'Please try again',
+      })
+    } finally {
+      setDisputeSubmitting(false)
     }
   }
 
@@ -605,6 +650,50 @@ export function CaseWorkspace() {
               </div>
             )}
           </Card>
+
+          {/* Report a problem — PRD §10.2 step 1: "Customer opens dispute" */}
+          {['FUNDED', 'IN_PROGRESS', 'PROOF', 'CUSTOMER_REVIEW', 'COMPLETED'].includes(status) &&
+            !(caseData.disputes || []).some((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW') && (
+              <Card className="p-4 gap-3">
+                {showDisputeForm ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-medium text-foreground">What went wrong?</p>
+                    <Textarea
+                      value={disputeReason}
+                      onChange={(e) => setDisputeReason(e.target.value)}
+                      placeholder="Describe the issue — REZZO will assemble the case history and ask the professional to respond."
+                      rows={3}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-rezzo-danger/40 text-rezzo-danger hover:bg-rezzo-danger/5"
+                        disabled={disputeSubmitting || disputeReason.trim().length < 5}
+                        onClick={handleOpenDispute}
+                      >
+                        {disputeSubmitting ? <Loader2 className="size-4 animate-spin" /> : 'Open dispute'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setShowDisputeForm(false); setDisputeReason('') }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowDisputeForm(true)}
+                    className="text-xs text-muted-foreground hover:text-rezzo-danger flex items-center gap-1.5 text-left"
+                  >
+                    <AlertCircle className="size-3.5" />
+                    Something wrong with this case? Report a problem
+                  </button>
+                )}
+              </Card>
+            )}
 
           {/* AI REZZO Summary */}
           {matter && (
@@ -1261,7 +1350,9 @@ export function CaseWorkspace() {
           )}
 
           {/* ===== DISPUTED ===== */}
-          {status === 'DISPUTED' && (
+          {status === 'DISPUTED' && (() => {
+            const activeDispute = caseData.disputes?.find((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW')
+            return (
             <section className="flex flex-col gap-4">
               <Card className="p-6 gap-4 border-rezzo-danger/20 bg-rezzo-danger/[0.02] text-center">
                 <div className="w-16 h-16 rounded-full bg-rezzo-danger/10 mx-auto flex items-center justify-center">
@@ -1269,9 +1360,25 @@ export function CaseWorkspace() {
                 </div>
                 <h3 className="text-lg font-bold text-rezzo-danger">Dispute Opened</h3>
                 <p className="text-sm text-muted-foreground">
-                  A dispute has been opened on this case. The REZZO team is reviewing the situation and will contact you shortly.
+                  {activeDispute?.status === 'UNDER_REVIEW'
+                    ? 'The professional has responded — REZZO is reviewing the case.'
+                    : 'A dispute has been opened on this case. The REZZO team is reviewing the situation and will contact you shortly.'}
                 </p>
               </Card>
+
+              {activeDispute?.reason && (
+                <Card className="p-4 gap-2">
+                  <p className="text-xs font-semibold text-[#102A43]">Your report</p>
+                  <p className="text-sm text-muted-foreground">{activeDispute.reason}</p>
+                </Card>
+              )}
+
+              {activeDispute?.professionalResponse && (
+                <Card className="p-4 gap-2">
+                  <p className="text-xs font-semibold text-[#102A43]">Professional's response</p>
+                  <p className="text-sm text-muted-foreground">{activeDispute.professionalResponse}</p>
+                </Card>
+              )}
 
               {/* Timeline */}
               {timeline.length > 0 && (
@@ -1300,7 +1407,8 @@ export function CaseWorkspace() {
                 </Card>
               )}
             </section>
-          )}
+            )
+          })()}
 
           {/* ===== UNDERSTANDING / CLARIFICATION / ROUTED: AI Processing ===== */}
           {(status === 'NEW' || status === 'UNDERSTANDING' || status === 'CLARIFICATION' || status === 'ROUTED') && (

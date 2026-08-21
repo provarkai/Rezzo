@@ -12,6 +12,9 @@ import {
   COMMISSION_REVERSAL_STATUSES,
   PROTECTION_BENEFIT_TYPES,
   PROTECTION_BENEFIT_STATUSES,
+  DISPUTE_STATUSES,
+  DISPUTE_OUTCOMES,
+  ROLES,
 } from './constants';
 import { transitionCase, addCaseEvent } from './case-engine';
 import { notify } from './notification-service';
@@ -330,4 +333,116 @@ export async function processPayout(paymentId: string) {
   });
 
   return payout;
+}
+
+// ============ RESOLVE DISPUTE (admin) ============
+
+// PRD §10.2 step 5-7: "Admin ... reviews the Case. Outcome is recorded.
+// Refund/payout/closure actions occur according to applicable terms." Lives
+// here (not case-engine.ts) because it touches Payment/CommissionEntry,
+// which only payment-engine.ts has — case-engine.ts is imported by this
+// file, not the other way round, so this keeps that one-directional.
+export async function resolveDispute(
+  disputeId: string,
+  adminId: string,
+  outcome: string,
+  resolutionCode?: string,
+  notes?: string
+) {
+  const dispute = await db.dispute.findUnique({
+    where: { id: disputeId },
+    include: {
+      case: {
+        include: {
+          payments: { orderBy: { createdAt: 'desc' } },
+          quotes: { where: { status: 'ACCEPTED' }, include: { professional: true } },
+        },
+      },
+    },
+  });
+  if (!dispute) throw new Error('Dispute not found');
+  if (dispute.status === DISPUTE_STATUSES.RESOLVED || dispute.status === DISPUTE_STATUSES.CLOSED) {
+    throw new Error(`Dispute is already ${dispute.status}`);
+  }
+
+  const payment = dispute.case.payments[0]; // most recent payment on the case
+  const professionalUserId = dispute.case.quotes[0]?.professional?.userId;
+
+  if (outcome === DISPUTE_OUTCOMES.REFUND || outcome === DISPUTE_OUTCOMES.PARTIAL_REFUND) {
+    if (payment) {
+      await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+      // Reverse the platform's commission on this payment too — REZZO
+      // doesn't keep its cut on money that's going back to the customer.
+      await db.commissionEntry.updateMany({
+        where: { paymentId: payment.id, reversalStatus: COMMISSION_REVERSAL_STATUSES.NONE },
+        data: {
+          reversalStatus: outcome === DISPUTE_OUTCOMES.REFUND
+            ? COMMISSION_REVERSAL_STATUSES.FULLY_REVERSED
+            : COMMISSION_REVERSAL_STATUSES.PARTIALLY_REVERSED,
+        },
+      });
+    }
+    try {
+      await transitionCase(dispute.caseId, 'REFUNDED', adminId, ROLES.ADMIN);
+    } catch {
+      // May already be past this state
+    }
+  } else {
+    // RELEASE_PAYOUT / DISMISSED — dispute found in the professional's
+    // favor. If payout hadn't gone out yet, let it proceed; either way,
+    // work resumes (DISPUTED -> IN_PROGRESS is always a valid transition).
+    if (outcome === DISPUTE_OUTCOMES.RELEASE_PAYOUT && payment?.status === 'FUNDED') {
+      try {
+        await processPayout(payment.id);
+      } catch {
+        // Best-effort — payout may already be in flight
+      }
+    }
+    try {
+      await transitionCase(dispute.caseId, 'IN_PROGRESS', adminId, ROLES.ADMIN);
+    } catch {
+      // May already be past this state
+    }
+  }
+
+  const updated = await db.dispute.update({
+    where: { id: disputeId },
+    data: {
+      status: DISPUTE_STATUSES.RESOLVED,
+      outcome,
+      resolutionCode: resolutionCode || null,
+      resolutionNotes: notes || null,
+      resolvedBy: adminId,
+      resolvedAt: new Date(),
+    },
+  });
+
+  await addCaseEvent(dispute.caseId, CASE_EVENTS.DISPUTE_RESOLVED, ROLES.ADMIN, adminId, {
+    disputeId,
+    outcome,
+    resolutionCode: resolutionCode || null,
+  });
+
+  try {
+    await notify({
+      userId: dispute.case.userId,
+      caseId: dispute.caseId,
+      type: 'DISPUTE_RESOLVED',
+      title: `Dispute resolved — ${dispute.case.caseNumber}`,
+      body: `Outcome: ${outcome.replace(/_/g, ' ').toLowerCase()}.${notes ? ' ' + notes : ''}`,
+    });
+    if (professionalUserId) {
+      await notify({
+        userId: professionalUserId,
+        caseId: dispute.caseId,
+        type: 'DISPUTE_RESOLVED',
+        title: `Dispute resolved — ${dispute.case.caseNumber}`,
+        body: `Outcome: ${outcome.replace(/_/g, ' ').toLowerCase()}.${notes ? ' ' + notes : ''}`,
+      });
+    }
+  } catch {
+    // Notification is best-effort
+  }
+
+  return updated;
 }

@@ -14,6 +14,20 @@ export async function POST(
     if (isAuthError(auth)) return auth.response;
 
     const { id } = await params;
+
+    // Only the case owner (or an admin) can approve resolution — otherwise
+    // any logged-in user could mark someone else's case resolved by ID.
+    const caseRecord = await db.case.findUnique({ where: { id }, select: { userId: true } });
+    if (!caseRecord) {
+      return NextResponse.json(errorResponse('NOT_FOUND', 'Case not found'), { status: 404 });
+    }
+    if (caseRecord.userId !== auth.user.id && auth.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        errorResponse('FORBIDDEN', 'Only the case owner can approve resolution'),
+        { status: 403 }
+      );
+    }
+
     const resolved = await customerApproveResolution(id, auth.user.id);
 
     try {

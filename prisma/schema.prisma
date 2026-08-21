@@ -29,6 +29,7 @@ model User {
   documents       Document[]
   reviews         Review[]
   disputesOpened  Dispute[]  @relation("DisputeOpener")
+  disputesResolved Dispute[] @relation("DisputeResolver")
   auditLogs       AuditLog[]
   notifications   Notification[]
   aiJobs          AiJob[]    @relation("AiJobOwner")
@@ -426,12 +427,21 @@ model Dispute {
   openedBy       String
   reason         String?
   status         String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  // PRD §10.2 dispute workflow: customer opens -> professional responds ->
+  // admin reviews and records an outcome.
+  professionalResponse    String?
+  professionalRespondedAt DateTime?
+  outcome        String?   // REFUND, PARTIAL_REFUND, RELEASE_PAYOUT, DISMISSED
   resolutionCode String?
+  resolutionNotes String?
+  resolvedBy     String?
+  resolvedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  case       Case @relation(fields: [caseId], references: [id])
-  openedByUser User @relation("DisputeOpener", fields: [openedBy], references: [id])
+  case         Case  @relation(fields: [caseId], references: [id])
+  openedByUser User  @relation("DisputeOpener", fields: [openedBy], references: [id])
+  resolvedByUser User? @relation("DisputeResolver", fields: [resolvedBy], references: [id])
 }
 
 // ============ AI ============

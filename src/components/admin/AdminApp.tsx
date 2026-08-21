@@ -7,6 +7,7 @@ import { AdminCaseQueue } from './AdminCaseQueue'
 import { AdminProfessionalQueue } from './AdminProfessionalQueue'
 import { AdminPayments } from './AdminPayments'
 import { AdminBypassSignals } from './AdminBypassSignals'
+import { AdminDisputes } from './AdminDisputes'
 import {
   LayoutDashboard,
   Briefcase,
@@ -122,7 +123,7 @@ export function AdminApp() {
             {adminTab === 'overview' && <AdminOverview />}
             {adminTab === 'cases' && <AdminCaseQueue />}
             {adminTab === 'professionals' && <AdminProfessionalQueue />}
-            {adminTab === 'disputes' && <AdminDisputesPlaceholder />}
+            {adminTab === 'disputes' && <AdminDisputes />}
             {adminTab === 'payments' && <AdminPayments />}
             {adminTab === 'ai-oversight' && <AdminBypassSignals />}
             {adminTab === 'analytics' && <AdminOverview />}
@@ -154,18 +155,6 @@ function AdminMobileTabs({
         </option>
       ))}
     </select>
-  )
-}
-
-function AdminDisputesPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <AlertTriangle className="size-10 text-muted-foreground/30 mb-3" />
-      <h2 className="text-sm font-semibold text-[#102A43] mb-1">Disputes Management</h2>
-      <p className="text-xs text-muted-foreground max-w-xs">
-        Disputed cases will appear here for review and resolution. No active disputes at this time.
-      </p>
-    </div>
   )
 }
 
