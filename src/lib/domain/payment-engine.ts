@@ -3,7 +3,14 @@
 // ============================================================
 
 import { db } from '@/lib/db';
-import { COMMISSION_RATE, CURRENCY, CASE_EVENTS } from './constants';
+import {
+  COMMISSION_RATE,
+  CURRENCY,
+  CASE_EVENTS,
+  PROTECTION_STATUSES,
+  TRANSACTION_MODES,
+  COMMISSION_REVERSAL_STATUSES,
+} from './constants';
 import { transitionCase, addCaseEvent } from './case-engine';
 
 // ============ TYPES ============
@@ -124,6 +131,31 @@ export async function confirmPayment(
     // Already transitioning
   }
 
+  // Record the platform commission as its own reversible ledger entry,
+  // independent of the commissionAmount snapshot already on Payment (PRD
+  // Upgrade §9 "Every commission is ledgered", §14 CommissionEntry).
+  const commissionEntry = await db.commissionEntry.create({
+    data: {
+      paymentId: payment.id,
+      baseAmount: payment.grossAmount,
+      rate: COMMISSION_RATE,
+      commissionAmount: payment.commissionAmount,
+      reversalStatus: COMMISSION_REVERSAL_STATUSES.NONE,
+    },
+  });
+
+  // A case whose payment has been made and funded through REZZO becomes a
+  // REZZO Protected Case (PRD Upgrade §10) — the transaction, and the proof/
+  // dispute history that follows it, are now tied to the Case.
+  await db.case.update({
+    where: { id: payment.caseId },
+    data: {
+      protectionEligible: true,
+      protectionStatus: PROTECTION_STATUSES.PROTECTED,
+      transactionMode: TRANSACTION_MODES.ON_PLATFORM,
+    },
+  });
+
   // Add PAYMENT_CONFIRMED event
   await addCaseEvent(
     payment.caseId,
@@ -135,6 +167,9 @@ export async function confirmPayment(
       providerReference: ref,
       grossAmount: payment.grossAmount,
       status: 'FUNDED',
+      commissionEntryId: commissionEntry.id,
+      commissionAmount: commissionEntry.commissionAmount,
+      protectionStatus: PROTECTION_STATUSES.PROTECTED,
     }
   );
 
