@@ -5,8 +5,23 @@
 
 import crypto from 'crypto'
 
-const TOKEN_SECRET = process.env.REZZO_TOKEN_SECRET || 'rezzo_v1_secret_key_change_in_production'
 const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+/**
+ * Read the signing secret from the environment. Deliberately has no
+ * hardcoded fallback: a deploy that forgets to set this should fail loudly
+ * (every call to sign/verify throws) rather than silently sign tokens with
+ * a secret anyone can read out of this file.
+ */
+function getTokenSecret(): string {
+  const secret = process.env.REZZO_TOKEN_SECRET
+  if (!secret) {
+    throw new Error(
+      'REZZO_TOKEN_SECRET is not set. Copy .env.example to .env and set a long random value — auth tokens cannot be signed or verified without it.'
+    )
+  }
+  return secret
+}
 
 export interface TokenPayload {
   userId: string
@@ -20,6 +35,7 @@ export interface TokenPayload {
  * Format: base64(payload).base64(signature)
  */
 export function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
+  const secret = getTokenSecret()
   const now = Date.now()
   const full: TokenPayload = {
     ...payload,
@@ -28,7 +44,7 @@ export function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
   }
   const payloadStr = Buffer.from(JSON.stringify(full)).toString('base64url')
   const signature = crypto
-    .createHmac('sha256', TOKEN_SECRET)
+    .createHmac('sha256', secret)
     .update(payloadStr)
     .digest('base64url')
   return `${payloadStr}.${signature}`
@@ -36,15 +52,19 @@ export function signToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
 
 /**
  * Verify a token and return its payload, or null if invalid/expired.
+ * A missing REZZO_TOKEN_SECRET is a server misconfiguration, not an
+ * invalid-token case — it throws rather than returning null, so it surfaces
+ * as a 500 instead of silently rejecting (or worse, accepting) every token.
  */
 export function verifyToken(token: string): TokenPayload | null {
+  const secret = getTokenSecret()
   try {
     const [payloadB64, signatureB64] = token.split('.')
     if (!payloadB64 || !signatureB64) return null
 
     // Verify signature
     const expectedSig = crypto
-      .createHmac('sha256', TOKEN_SECRET)
+      .createHmac('sha256', secret)
       .update(payloadB64)
       .digest('base64url')
     if (!crypto.timingSafeEqual(Buffer.from(signatureB64), Buffer.from(expectedSig))) {
