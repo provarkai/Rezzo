@@ -11,6 +11,8 @@ import {
   VERIFICATION_TIER_BONUS,
   CASE_NUMBER_PREFIX,
   CASE_NUMBER_START,
+  ACTIVE_VERIFICATION_STATUSES,
+  isVerificationActive,
 } from './constants'
 
 describe('isValidTransition (case state machine)', () => {
@@ -121,6 +123,33 @@ describe('COMMISSION_RATE', () => {
   it('is 10%, per the PRD\'s worked example (₦100,000 service -> ₦10,000 commission)', () => {
     expect(COMMISSION_RATE).toBe(0.1)
     expect(100_000 * COMMISSION_RATE).toBe(10_000)
+  })
+})
+
+describe('isVerificationActive', () => {
+  it('is true only for VERIFIED, TRUSTED, and EXPERT', () => {
+    expect(isVerificationActive('VERIFIED')).toBe(true)
+    expect(isVerificationActive('TRUSTED')).toBe(true)
+    expect(isVerificationActive('EXPERT')).toBe(true)
+  })
+
+  it('is false for a freshly-applied or otherwise inactive professional', () => {
+    // The gap this exists to close: a PENDING professional could submit
+    // real quotes before this check was added to the quote-creation route.
+    expect(isVerificationActive('PENDING')).toBe(false)
+    expect(isVerificationActive('NEEDS_INFO')).toBe(false)
+    expect(isVerificationActive('SUSPENDED')).toBe(false)
+    expect(isVerificationActive('REVOKED')).toBe(false)
+  })
+
+  it('treats missing status as inactive rather than throwing', () => {
+    expect(isVerificationActive(null)).toBe(false)
+    expect(isVerificationActive(undefined)).toBe(false)
+    expect(isVerificationActive('')).toBe(false)
+  })
+
+  it('stays in sync with what the matching engine already trusted as "active"', () => {
+    expect(ACTIVE_VERIFICATION_STATUSES).toEqual(['VERIFIED', 'TRUSTED', 'EXPERT'])
   })
 })
 

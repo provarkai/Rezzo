@@ -3,7 +3,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
-import { CASE_EVENTS, VERIFICATION_STATUSES, AVAILABILITY_STATUSES, MATCHING_WEIGHTS, VERIFICATION_TIER_BONUS } from './constants';
+import { CASE_EVENTS, ACTIVE_VERIFICATION_STATUSES, AVAILABILITY_STATUSES, MATCHING_WEIGHTS, VERIFICATION_TIER_BONUS, isVerificationActive } from './constants';
 import { addCaseEvent } from './case-engine';
 
 // ============ TYPES ============
@@ -71,7 +71,7 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
   // Get all verified, active professionals with their skills and services
   const professionals = await db.professional.findMany({
     where: {
-      verificationStatus: { in: [VERIFICATION_STATUSES.VERIFIED, VERIFICATION_STATUSES.TRUSTED, VERIFICATION_STATUSES.EXPERT] },
+      verificationStatus: { in: [...ACTIVE_VERIFICATION_STATUSES] },
       availabilityStatus: AVAILABILITY_STATUSES.ACTIVE,
     },
     include: {
@@ -154,7 +154,7 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
         explanationParts.push(`relevant expertise in ${matchedSkills.join(', ')}`);
       }
     }
-    if (pro.verificationStatus === VERIFICATION_STATUSES.VERIFIED || pro.verificationStatus === VERIFICATION_STATUSES.TRUSTED || pro.verificationStatus === VERIFICATION_STATUSES.EXPERT) {
+    if (isVerificationActive(pro.verificationStatus)) {
       explanationParts.push('verified credentials');
     }
     if (breakdown.locationMatch >= 15) {

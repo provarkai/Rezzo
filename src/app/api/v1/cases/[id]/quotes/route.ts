@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse, CASE_EVENTS } from '@/lib/domain/constants';
+import { successResponse, errorResponse, CASE_EVENTS, isVerificationActive } from '@/lib/domain/constants';
 import { addCaseEvent, addParticipant, transitionCase } from '@/lib/domain/case-engine';
 import { notify } from '@/lib/domain/notification-service';
 import { z } from 'zod';
@@ -43,6 +43,21 @@ export async function POST(
     });
     if (!professional) {
       return NextResponse.json(errorResponse('FORBIDDEN', 'Only verified professionals can submit quotes'), { status: 403 });
+    }
+    // The comment above already claimed this — a Professional record alone
+    // was never actually checked for verification status here, meaning a
+    // freshly-applied (PENDING) professional could submit real quotes on
+    // real cases before anyone reviewed them. The matching engine already
+    // excludes non-active tiers from auto-routing (matching-engine.ts); this
+    // closes the same gap for a professional acting directly on a case.
+    if (!isVerificationActive(professional.verificationStatus)) {
+      return NextResponse.json(
+        errorResponse(
+          'FORBIDDEN',
+          `Your professional application is still in verification (status: ${professional.verificationStatus}). You can submit quotes once it's approved.`
+        ),
+        { status: 403 }
+      );
     }
 
     // Verify case exists

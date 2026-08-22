@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut, Settings, HelpCircle, ChevronRight, MessageSquare, Shield, Repeat } from 'lucide-react'
+import { LogOut, Settings, HelpCircle, ChevronRight, MessageSquare, Shield, Repeat, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
 const MENU_ITEMS = [
@@ -19,6 +19,7 @@ export function CustomerProfile() {
   const logout = useRezzoStore((s) => s.logout)
   const setCurrentView = useRezzoStore((s) => s.setCurrentView)
   const setActiveMode = useRezzoStore((s) => s.setActiveMode)
+  const setProfessionalApplyOpen = useRezzoStore((s) => s.setProfessionalApplyOpen)
 
   const handleLogout = () => {
     logout()
@@ -31,6 +32,7 @@ export function CustomerProfile() {
   // choice and drops them back on AccountModeChooser (see src/app/page.tsx).
   const isDual = !!currentUser?.professionalId
   const handleSwitchAccount = () => setActiveMode(null)
+  const handleApply = () => setProfessionalApplyOpen(true)
 
   const initials = currentUser?.name
     ?.split(' ')
@@ -92,7 +94,7 @@ export function CustomerProfile() {
         })}
       </div>
 
-      {isDual && (
+      {isDual ? (
         <>
           <Separator />
           <Button
@@ -103,6 +105,29 @@ export function CustomerProfile() {
             <Repeat className="size-4" />
             Switch to Professional Account
           </Button>
+        </>
+      ) : (
+        <>
+          <Separator />
+          <Card
+            className="p-4 gap-3 border-rezzo-gold/20 bg-rezzo-gold/5 cursor-pointer rezzo-card-hover"
+            onClick={handleApply}
+            role="button"
+            tabIndex={0}
+            aria-label="Apply to become a professional"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleApply() } }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rezzo-gold/10 flex items-center justify-center shrink-0">
+                <Wrench className="size-5 text-rezzo-gold" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-rezzo-navy">Become a Professional</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Apply to offer your services on REZZO — your customer account stays active either way.</p>
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground shrink-0 mt-1" />
+            </div>
+          </Card>
         </>
       )}
 

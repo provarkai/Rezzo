@@ -21,7 +21,19 @@ interface RezzoState {
   currentUser: UserState | null
   authToken: string | null
   setCurrentUser: (user: UserState | null) => void
+  /** Patches fields on the existing currentUser (e.g. professionalId right
+   *  after a successful application) without the fresh-login reset
+   *  setCurrentUser does — an application doesn't change who's logged in or
+   *  which mode is active, so activeMode must survive it untouched. */
+  updateCurrentUser: (patch: Partial<UserState>) => void
   setAuthToken: (token: string | null) => void
+  /** True while the professional-application form (ProfessionalApply) was
+   *  explicitly opened this session — e.g. from CustomerProfile's "Apply to
+   *  become a professional". page.tsx also shows that form automatically
+   *  for a role='PROFESSIONAL' account with no Professional record yet
+   *  (registered but never finished applying) independent of this flag. */
+  professionalApplyOpen: boolean
+  setProfessionalApplyOpen: (open: boolean) => void
   /** Which side of a dual customer+professional account is currently in
    *  use. Only one is ever active at a time — chosen right after login
    *  (immediately, with no prompt, for accounts that only have one side)
@@ -58,8 +70,11 @@ export const useRezzoStore = create<RezzoState>((set) => ({
     // same browser could leak into a fresh login. Every call here means a
     // fresh identity (or a logout), so always force a fresh mode decision.
     if (typeof window !== 'undefined') localStorage.removeItem('rezzo_active_mode')
-    set({ currentUser: user, activeMode: null })
+    set({ currentUser: user, activeMode: null, professionalApplyOpen: false })
   },
+  updateCurrentUser: (patch) => set((s) => (s.currentUser ? { currentUser: { ...s.currentUser, ...patch } } : {})),
+  professionalApplyOpen: false,
+  setProfessionalApplyOpen: (open) => set({ professionalApplyOpen: open }),
   setAuthToken: (token) => {
     if (typeof window !== 'undefined') {
       if (token) localStorage.setItem('rezzo_token', token)
@@ -80,7 +95,7 @@ export const useRezzoStore = create<RezzoState>((set) => ({
       localStorage.removeItem('rezzo_token')
       localStorage.removeItem('rezzo_active_mode')
     }
-    set({ currentUser: null, authToken: null, activeMode: null, currentView: 'landing' })
+    set({ currentUser: null, authToken: null, activeMode: null, professionalApplyOpen: false, currentView: 'landing' })
   },
   currentView: 'landing',
   setCurrentView: (view) => set({ currentView: view }),

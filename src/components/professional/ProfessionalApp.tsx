@@ -10,7 +10,9 @@ import { ProfessionalCaseDetail } from './ProfessionalCaseDetail'
 import { ProfessionalEarnings } from './ProfessionalEarnings'
 import { ProfessionalServices } from './ProfessionalServices'
 import { ProfessionalTrust } from './ProfessionalTrust'
+import { ProfessionalVerificationStatus } from './ProfessionalVerificationStatus'
 import { NotificationBell } from '@/components/rezzo/NotificationBell'
+import { isVerificationActive } from '@/lib/domain/constants'
 import {
   LayoutDashboard,
   Briefcase,
@@ -40,6 +42,14 @@ export function ProfessionalApp() {
   const currentUser = useRezzoStore((s) => s.currentUser)
 
   const firstName = currentUser?.name?.split(' ')[0] || 'Professional'
+
+  // A Professional record existing isn't the same as being allowed to work
+  // cases — verification is staged (PENDING/NEEDS_INFO -> VERIFIED and up,
+  // see isVerificationActive). Gate the whole shell on it rather than just
+  // hiding a button, since case-accepting actions are the point of this app.
+  if (!isVerificationActive(currentUser?.verificationStatus)) {
+    return <ProfessionalVerificationStatus />
+  }
 
   if (proSelectedCaseId) {
     return <ProfessionalCaseDetail />

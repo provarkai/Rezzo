@@ -149,6 +149,23 @@ export const VERIFICATION_STATUSES = {
   REVOKED: 'REVOKED',
 } as const;
 
+// A professional is only "active" — matchable, and allowed to submit
+// quotes — once verification clears PENDING/NEEDS_INFO. TRUSTED/EXPERT are
+// higher trust tiers reached after VERIFIED (see calculateTrustScore in
+// verification.ts), not separate approval stages; SUSPENDED/REVOKED are a
+// verified professional taken back out of activity. Shared by
+// matching-engine (already filtered on this) and the quote-submission gate
+// (which didn't, until now) so the two can't drift apart.
+export const ACTIVE_VERIFICATION_STATUSES: readonly string[] = [
+  VERIFICATION_STATUSES.VERIFIED,
+  VERIFICATION_STATUSES.TRUSTED,
+  VERIFICATION_STATUSES.EXPERT,
+];
+
+export function isVerificationActive(status: string | null | undefined): boolean {
+  return !!status && ACTIVE_VERIFICATION_STATUSES.includes(status);
+}
+
 export const AVAILABILITY_STATUSES = {
   ACTIVE: 'ACTIVE',
   INACTIVE: 'INACTIVE',
