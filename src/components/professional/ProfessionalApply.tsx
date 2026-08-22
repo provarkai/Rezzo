@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRezzoStore, apiPost } from '@/store/rezzo-store'
+import { SERVICE_CATEGORIES } from '@/lib/domain/constants'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,8 +22,8 @@ const SKILL_LEVELS = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'] as const
 const PRICING_TYPES = ['QUOTE_REQUIRED', 'FIXED', 'STARTING_FROM', 'HOURLY', 'MILESTONE'] as const
 const CREDENTIAL_TYPES = ['IDENTITY', 'LICENSE', 'CERTIFICATE', 'DEGREE'] as const
 
-interface SkillRow { name: string; level: typeof SKILL_LEVELS[number] }
-interface ServiceRow { name: string; description: string; pricingType: typeof PRICING_TYPES[number]; amount: string; unit: string }
+interface SkillRow { name: string; level: typeof SKILL_LEVELS[number]; categoryId: string }
+interface ServiceRow { name: string; description: string; pricingType: typeof PRICING_TYPES[number]; amount: string; unit: string; categoryId: string }
 interface CredentialRow { type: typeof CREDENTIAL_TYPES[number]; issuer: string; reference: string }
 
 const selectClass = 'h-10 w-full rounded-lg border border-input bg-transparent px-3 text-sm text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none transition-all'
@@ -37,8 +38,8 @@ export function ProfessionalApply() {
 
   const [bio, setBio] = useState('')
   const [serviceArea, setServiceArea] = useState('')
-  const [skills, setSkills] = useState<SkillRow[]>([{ name: '', level: 'INTERMEDIATE' }])
-  const [services, setServices] = useState<ServiceRow[]>([{ name: '', description: '', pricingType: 'QUOTE_REQUIRED', amount: '', unit: '' }])
+  const [skills, setSkills] = useState<SkillRow[]>([{ name: '', level: 'INTERMEDIATE', categoryId: '' }])
+  const [services, setServices] = useState<ServiceRow[]>([{ name: '', description: '', pricingType: 'QUOTE_REQUIRED', amount: '', unit: '', categoryId: '' }])
   const [credentials, setCredentials] = useState<CredentialRow[]>([{ type: 'IDENTITY', issuer: '', reference: '' }])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,11 +91,12 @@ export function ProfessionalApply() {
         {
           bio: bio.trim() || undefined,
           serviceArea: serviceArea.trim(),
-          skills: validSkills.map((s) => ({ name: s.name.trim(), level: s.level })),
+          skills: validSkills.map((s) => ({ name: s.name.trim(), level: s.level, categoryId: s.categoryId || undefined })),
           services: validServices.map((s) => ({
             name: s.name.trim(),
             description: s.description.trim() || undefined,
             pricingType: s.pricingType,
+            categoryId: s.categoryId || undefined,
             prices: s.amount.trim() ? [{ amount: Number(s.amount), unit: s.unit.trim() || undefined }] : undefined,
           })),
           credentials: validCredentials.map((c) => ({
@@ -160,38 +162,51 @@ export function ProfessionalApply() {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs gap-1 text-rezzo-green hover:text-rezzo-green"
-              onClick={() => setSkills((rows) => [...rows, { name: '', level: 'INTERMEDIATE' }])}
+              onClick={() => setSkills((rows) => [...rows, { name: '', level: 'INTERMEDIATE', categoryId: '' }])}
             >
               <Plus className="size-3.5" /> Add skill
             </Button>
           </div>
           {skills.map((skill, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                value={skill.name}
-                onChange={(e) => updateSkill(i, { name: e.target.value })}
-                placeholder="e.g. AC Repair"
-                aria-label={`Skill ${i + 1} name`}
-                className="flex-1"
-              />
-              <select
-                value={skill.level}
-                onChange={(e) => updateSkill(i, { level: e.target.value as SkillRow['level'] })}
-                aria-label={`Skill ${i + 1} level`}
-                className={`${selectClass} w-36 shrink-0`}
-              >
-                {SKILL_LEVELS.map((l) => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
-              </select>
-              {skills.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setSkills((rows) => rows.filter((_, idx) => idx !== i))}
-                  aria-label={`Remove skill ${i + 1}`}
-                  className="p-2 text-muted-foreground hover:text-rezzo-danger transition-colors shrink-0"
+            <div key={i} className="flex flex-col gap-2 pb-3 border-b border-border/60 last:border-0 last:pb-0">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={skill.name}
+                  onChange={(e) => updateSkill(i, { name: e.target.value })}
+                  placeholder="e.g. AC Repair"
+                  aria-label={`Skill ${i + 1} name`}
+                  className="flex-1"
+                />
+                {skills.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSkills((rows) => rows.filter((_, idx) => idx !== i))}
+                    aria-label={`Remove skill ${i + 1}`}
+                    className="p-2 text-muted-foreground hover:text-rezzo-danger transition-colors shrink-0"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={skill.level}
+                  onChange={(e) => updateSkill(i, { level: e.target.value as SkillRow['level'] })}
+                  aria-label={`Skill ${i + 1} level`}
+                  className={`${selectClass} w-36 shrink-0`}
                 >
-                  <Trash2 className="size-4" />
-                </button>
-              )}
+                  {SKILL_LEVELS.map((l) => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
+                </select>
+                <select
+                  value={skill.categoryId}
+                  onChange={(e) => updateSkill(i, { categoryId: e.target.value })}
+                  aria-label={`Skill ${i + 1} category`}
+                  className={`${selectClass} flex-1`}
+                >
+                  <option value="">No category</option>
+                  {SERVICE_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
             </div>
           ))}
         </Card>
@@ -204,7 +219,7 @@ export function ProfessionalApply() {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs gap-1 text-rezzo-green hover:text-rezzo-green"
-              onClick={() => setServices((rows) => [...rows, { name: '', description: '', pricingType: 'QUOTE_REQUIRED', amount: '', unit: '' }])}
+              onClick={() => setServices((rows) => [...rows, { name: '', description: '', pricingType: 'QUOTE_REQUIRED', amount: '', unit: '', categoryId: '' }])}
             >
               <Plus className="size-3.5" /> Add service
             </Button>
@@ -246,6 +261,17 @@ export function ProfessionalApply() {
                 >
                   {PRICING_TYPES.map((p) => <option key={p} value={p}>{p.replace(/_/g, ' ')}</option>)}
                 </select>
+                <select
+                  value={service.categoryId}
+                  onChange={(e) => updateService(i, { categoryId: e.target.value })}
+                  aria-label={`Service ${i + 1} category`}
+                  className={`${selectClass} flex-1`}
+                >
+                  <option value="">No category</option>
+                  {SERVICE_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
                 <Input
                   value={service.amount}
                   onChange={(e) => updateService(i, { amount: e.target.value.replace(/[^0-9.]/g, '') })}

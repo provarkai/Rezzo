@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { successResponse, errorResponse, SERVICE_CATEGORIES } from '@/lib/domain/constants';
 
 // There's no Category model — categoryId has always been a free string set
 // by AI REZZO's classifier (matching-engine.ts / ai-orchestrator.ts), not
@@ -9,12 +9,12 @@ import { successResponse, errorResponse } from '@/lib/domain/constants';
 // nothing else reads, this surfaces what's actually happening: real case
 // volume per category, and which categories have zero KnowledgeSource
 // coverage — the concrete, useful "categories" question an admin has.
-const KNOWN_CATEGORIES: Record<string, string> = {
-  AC_REPAIR: 'HOME_TECHNICAL', GENERATOR_REPAIR: 'HOME_TECHNICAL', PLUMBING: 'HOME_TECHNICAL', ELECTRICAL: 'HOME_TECHNICAL',
-  PROPERTY_HOUSING: 'PROPERTY_HOUSING',
-  BUSINESS_ENTERPRISE: 'BUSINESS_ENTERPRISE',
-  PASSPORT: 'GOVERNMENT_DOCUMENTATION', NIN: 'GOVERNMENT_DOCUMENTATION', BIRTH_CERTIFICATE: 'GOVERNMENT_DOCUMENTATION', DRIVERS_LICENSE: 'GOVERNMENT_DOCUMENTATION', GOVERNMENT_DOC: 'GOVERNMENT_DOCUMENTATION',
-};
+// SERVICE_CATEGORIES (constants.ts) is that same known taxonomy — also now
+// used by the professional apply form's category dropdowns — kept as one
+// list instead of two that could quietly drift apart.
+const KNOWN_CATEGORIES: Record<string, string | null> = Object.fromEntries(
+  SERVICE_CATEGORIES.map((c) => [c.id, c.vertical])
+);
 
 export async function GET(request: NextRequest) {
   try {

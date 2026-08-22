@@ -13,6 +13,8 @@ import {
   CASE_NUMBER_START,
   ACTIVE_VERIFICATION_STATUSES,
   isVerificationActive,
+  SERVICE_CATEGORIES,
+  VERTICALS,
 } from './constants'
 
 describe('isValidTransition (case state machine)', () => {
@@ -150,6 +152,37 @@ describe('isVerificationActive', () => {
 
   it('stays in sync with what the matching engine already trusted as "active"', () => {
     expect(ACTIVE_VERIFICATION_STATUSES).toEqual(['VERIFIED', 'TRUSTED', 'EXPERT'])
+  })
+})
+
+describe('SERVICE_CATEGORIES', () => {
+  it('has no duplicate ids', () => {
+    const ids = SERVICE_CATEGORIES.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('gives every category a non-empty label', () => {
+    for (const c of SERVICE_CATEGORIES) {
+      expect(c.label.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('only assigns a real VERTICALS value or null, never a made-up one', () => {
+    const validVerticals = new Set(Object.values(VERTICALS))
+    for (const c of SERVICE_CATEGORIES) {
+      expect(c.vertical === null || validVerticals.has(c.vertical)).toBe(true)
+    }
+  })
+
+  it('matches the known category ids matching-engine.ts and the admin categories route already relied on', () => {
+    // Can't import matching-engine.ts here (it pulls in @/lib/db, which
+    // doesn't resolve without a generated Prisma client) — this pins the
+    // ids that file's CATEGORY_SKILL_MAP hardcodes instead, so a rename
+    // here is a deliberate decision, not a silent drift.
+    const ids = new Set(SERVICE_CATEGORIES.map((c) => c.id))
+    for (const id of ['AC_REPAIR', 'GENERATOR_REPAIR', 'PLUMBING', 'ELECTRICAL', 'PROPERTY_HOUSING', 'BUSINESS_ENTERPRISE', 'GOVERNMENT_DOC', 'GENERAL']) {
+      expect(ids.has(id)).toBe(true)
+    }
   })
 })
 

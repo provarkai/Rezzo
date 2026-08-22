@@ -94,6 +94,32 @@ export const VERTICALS = {
 
 export type Vertical = (typeof VERTICALS)[keyof typeof VERTICALS];
 
+// ============ SERVICE CATEGORIES ============
+//
+// Deliberately not a database model (see the comment in
+// admin/categories/route.ts, which this constant now feeds instead of
+// hardcoding its own copy): a case's categoryId is an AI-classifier output
+// (ai-orchestrator.ts), not something an admin curates, and
+// matching-engine.ts's CATEGORY_SKILL_MAP already keys its keyword lists on
+// these same ids. This is that taxonomy made reusable — the professional
+// apply form's category dropdowns (skills/services) are the first other
+// consumer, so a professional tags their work with an id the matching
+// engine already understands instead of a free-typed string nothing reads.
+export const SERVICE_CATEGORIES: readonly { id: string; label: string; vertical: Vertical | null }[] = [
+  { id: 'AC_REPAIR', label: 'AC Repair', vertical: VERTICALS.HOME_TECHNICAL },
+  { id: 'GENERATOR_REPAIR', label: 'Generator Repair', vertical: VERTICALS.HOME_TECHNICAL },
+  { id: 'PLUMBING', label: 'Plumbing', vertical: VERTICALS.HOME_TECHNICAL },
+  { id: 'ELECTRICAL', label: 'Electrical', vertical: VERTICALS.HOME_TECHNICAL },
+  { id: 'PROPERTY_HOUSING', label: 'Property & Housing', vertical: VERTICALS.PROPERTY_HOUSING },
+  { id: 'BUSINESS_ENTERPRISE', label: 'Business & Enterprise', vertical: VERTICALS.BUSINESS_ENTERPRISE },
+  { id: 'PASSPORT', label: 'Passport', vertical: VERTICALS.GOVERNMENT_DOCUMENTATION },
+  { id: 'NIN', label: 'NIN', vertical: VERTICALS.GOVERNMENT_DOCUMENTATION },
+  { id: 'BIRTH_CERTIFICATE', label: 'Birth Certificate', vertical: VERTICALS.GOVERNMENT_DOCUMENTATION },
+  { id: 'DRIVERS_LICENSE', label: "Driver's License", vertical: VERTICALS.GOVERNMENT_DOCUMENTATION },
+  { id: 'GOVERNMENT_DOC', label: 'Government Documentation (Other)', vertical: VERTICALS.GOVERNMENT_DOCUMENTATION },
+  { id: 'GENERAL', label: 'Other / General', vertical: null },
+] as const;
+
 // ============ OTHER ENUMS ============
 export const USER_STATUSES = {
   ACTIVE: 'ACTIVE',
