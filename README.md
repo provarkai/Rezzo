@@ -98,20 +98,23 @@ Registration and login require a password (min. 8 characters) — there is no pa
 
 The homepage's "Quick Demo Access" buttons log into these same seeded accounts by phone — Customer and Professional used to use different, unseeded numbers (`08010000001`/`08020000001`), so the buttons never found the real accounts and silently created bare throwaway ones instead, with none of the seeded skills/services/trust score/reviews the Professional demo in particular is supposed to show off. Fixed to use the real seeded phones above.
 
-### AI (Claude API)
+### AI (OpenRouter)
 
 AI REZZO's case-intake classification (`orchestrateCase()` in
 `ai-orchestrator.ts` — turning a customer's raw description into an
 intent/category/vertical/risk-level classification, PRD §"AI REZZO") calls
-the real Claude API (`@anthropic-ai/sdk`, model `claude-opus-5`) when
-`ANTHROPIC_API_KEY` is set. Get a key at
-[console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
+[OpenRouter](https://openrouter.ai)'s OpenAI-compatible `/chat/completions`
+endpoint via plain `fetch` (no SDK dependency) when `OPENROUTER_API_KEY` is
+set. Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+`OPENROUTER_MODEL` picks which model OpenRouter routes to (any id from
+[openrouter.ai/models](https://openrouter.ai/models) — Claude, GPT, Llama,
+etc.); defaults to `openai/gpt-4o-mini` if unset.
 
 This replaces `z-ai-web-dev-sdk`, which the app shipped with originally —
 that package talks to a sandbox-specific dev backend with no API key of its
 own, which works only inside the environment it was scaffolded in and has
 no path to a real production deployment (nothing to configure on Vercel;
-the import would just fail there). `ANTHROPIC_API_KEY` unset is a
+the import would just fail there). `OPENROUTER_API_KEY` unset is a
 supported, non-broken state: `orchestrateCase()` falls straight to
 `mockAiOrchestration()`, a keyword-matching classifier that's always been
 the fallback for a failed/timed-out LLM call — the app runs and cases still

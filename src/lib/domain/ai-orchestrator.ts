@@ -12,7 +12,6 @@ import {
   AI_REZZO_SYSTEM_PROMPT,
   AI_ESCALATION_CONFIDENCE_THRESHOLD,
   AI_JOB_STATUSES,
-  AI_MODEL,
   PUBLIC_USER_SELECT,
   type CaseEventType,
 } from './constants';
@@ -272,24 +271,42 @@ function mockAiOrchestration(rawInput: string): AiOrchestrationResult {
 
 async function callLlmOrchestration(rawInput: string): Promise<AiOrchestrationResult | null> {
   // No key configured (local dev without one, or the var simply unset) —
-  // skip straight to the mock rather than letting the SDK throw on an
-  // empty/missing credential.
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+  // skip straight to the mock rather than letting the request fail on a
+  // missing credential.
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
 
   try {
-    // Dynamic import to avoid bundling on client
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic();
-
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 4096,
-      system: AI_REZZO_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: rawInput }],
+    // OpenRouter exposes an OpenAI-compatible /chat/completions endpoint —
+    // plain fetch is enough, no SDK needed. OPENROUTER_MODEL lets this be
+    // swapped to any model OpenRouter routes to (Claude, GPT, Llama, ...)
+    // without a code change.
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        // Optional but recommended by OpenRouter for their own analytics —
+        // harmless to omit, doesn't affect the request.
+        'HTTP-Referer': process.env.APP_URL || 'https://rezzo.ng',
+        'X-Title': 'REZZO',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: AI_REZZO_SYSTEM_PROMPT },
+          { role: 'user', content: rawInput },
+        ],
+      }),
     });
 
-    const textBlock = response.content.find((b) => b.type === 'text');
-    const content = textBlock?.text ?? '';
+    if (!res.ok) {
+      throw new Error(`OpenRouter returned ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+    const content = data.choices?.[0]?.message?.content ?? '';
 
     // Try to parse JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -315,7 +332,7 @@ async function callLlmOrchestration(rawInput: string): Promise<AiOrchestrationRe
     // LLM call failed (bad key, rate limit, network) — fall through to the
     // mock rather than failing case intake outright. Logged so a silently
     // misconfigured key doesn't look like the mock working as intended.
-    logger.warn('Claude orchestration call failed, falling back to mock', { error: err });
+    logger.warn('OpenRouter orchestration call failed, falling back to mock', { error: err });
   }
   return null;
 }
