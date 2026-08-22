@@ -3,11 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ============ ENUMS (as String constants in SQLite) ============
+// ============ ENUMS (kept as plain String columns, not Postgres enums) ============
+// Every status/state/role field below is a String, validated against the
+// constants in src/lib/domain/constants.ts (CASE_STATES, ROLES, etc.) at
+// the application layer rather than a native Postgres enum type. That was
+// originally so the schema worked unmodified on SQLite (no enum support
+// there); it's kept that way on Postgres too so adding a new status value
+// is a constants.ts change, not a `prisma migrate` for an enum alteration.
 
 // ============ CORE IDENTITY ============
 
