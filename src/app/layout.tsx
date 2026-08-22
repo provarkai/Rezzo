@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import { ServiceWorkerRegistration } from "@/components/rezzo/ServiceWorkerRegistration";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
   authors: [{ name: 'REZZO Team' }],
   icons: {
     icon: '/logo.svg',
+    apple: '/icons/apple-touch-icon.png',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'REZZO',
   },
   openGraph: {
     title: 'REZZO — Get Things Done, The Smart Way',
@@ -33,6 +41,15 @@ export const metadata: Metadata = {
     title: 'REZZO — AI-Powered Resolution Platform',
     description: 'Tell REZZO what you need. Get matched with verified Nigerian professionals.',
   },
+};
+
+// themeColor/colorScheme live in a separate `viewport` export as of
+// Next.js 14+ — putting them in `metadata` (the pre-14 shape) triggers a
+// build warning instead of doing anything.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#102A43',
 };
 
 export default function RootLayout({
@@ -48,6 +65,7 @@ export default function RootLayout({
         {children}
         <Toaster />
         <SonnerToaster position="top-center" richColors closeButton />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
