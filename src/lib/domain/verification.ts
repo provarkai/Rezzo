@@ -112,6 +112,74 @@ export async function submitApplication(
   return professional;
 }
 
+// ============ REVIEW A SINGLE CREDENTIAL ============
+//
+// reviewVerification() below is a bulk, all-credentials-at-once decision —
+// the only review path that existed until now, even though
+// ProfessionalCredential already had its own per-row `status` column. This
+// reviews one credential at a time and recomputes the professional's
+// aggregate verificationStatus from the current state of all of them, so
+// "verified" always reflects what was actually verified rather than one
+// bulk click covering credentials nobody individually checked.
+
+export async function reviewCredential(
+  credentialId: string,
+  reviewerId: string,
+  status: 'VERIFIED' | 'REJECTED',
+  notes?: string
+) {
+  const credential = await db.professionalCredential.findUnique({
+    where: { id: credentialId },
+  });
+  if (!credential) throw new Error('Credential not found');
+
+  await db.professionalCredential.update({
+    where: { id: credentialId },
+    data: { status },
+  });
+
+  const professionalId = credential.professionalId;
+
+  // Reuses the professional-level VerificationReview log rather than adding
+  // a credentialId column — the credential type is folded into the note so
+  // the audit trail still says which one this decision was about.
+  await db.verificationReview.create({
+    data: {
+      professionalId,
+      reviewerId,
+      status: status === 'VERIFIED' ? 'APPROVED' : 'REJECTED',
+      notes: [`[${credential.type}]`, notes].filter(Boolean).join(' ') || null,
+    },
+  });
+
+  const allCredentials = await db.professionalCredential.findMany({
+    where: { professionalId },
+  });
+  const hasRejected = allCredentials.some((c) => c.status === 'REJECTED');
+  const allVerified = allCredentials.length > 0 && allCredentials.every((c) => c.status === 'VERIFIED');
+
+  let verificationStatus: string;
+  let trustScore: number | undefined;
+
+  if (allVerified) {
+    trustScore = await calculateTrustScore(professionalId);
+    verificationStatus = trustScore >= 90 ? 'EXPERT' : trustScore >= 75 ? 'TRUSTED' : 'VERIFIED';
+  } else if (hasRejected) {
+    // A rejected credential doesn't revoke the whole application (REVOKED
+    // is reserved for reviewVerification's bulk rejection) — it sends the
+    // applicant back to NEEDS_INFO so they know specifically what to fix.
+    verificationStatus = 'NEEDS_INFO';
+  } else {
+    verificationStatus = 'PENDING';
+  }
+
+  return db.professional.update({
+    where: { id: professionalId },
+    data: trustScore !== undefined ? { verificationStatus, trustScore } : { verificationStatus },
+    include: { credentials: true },
+  });
+}
+
 // ============ REVIEW VERIFICATION ============
 
 export async function reviewVerification(

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
   Dialog,
@@ -24,18 +23,44 @@ import {
 } from '@/components/ui/table'
 import { TrustScore } from '@/components/rezzo/TrustScore'
 import { apiGet, apiPost, extractList } from '@/store/rezzo-store'
-import { Check, X, Shield, MapPin, Star, Loader2 } from 'lucide-react'
+import { Check, X, Shield, MapPin, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
+interface CredentialItem {
+  id: string
+  type: string
+  status: string
+  issuer?: string | null
+  reference?: string | null
+}
+
+// GET /admin/professionals returns raw Prisma rows (user -> profile ->
+// displayName, no flat `name`/`profession` columns — Professional has
+// neither). This interface used to declare `name`/`profession` as if they
+// were real fields; nothing ever populated them, so every row in this
+// table silently rendered a blank name. getName/getProfession below read
+// the shape that's actually there.
 interface Professional {
   id: string
-  name: string
-  profession?: string
-  serviceArea?: string
+  serviceArea?: string | null
   verificationStatus: string
   trustScore: number
   skills?: Array<{ name?: string }>
-  credentials?: Array<{ type?: string; status?: string }>
+  credentials?: CredentialItem[]
   createdAt: string
+  user?: {
+    phone?: string | null
+    email?: string | null
+    profile?: { displayName?: string | null } | null
+  } | null
+}
+
+function getName(pro: Professional): string {
+  return pro.user?.profile?.displayName || pro.user?.phone || pro.user?.email || 'Unknown'
+}
+
+function getProfession(pro: Professional): string {
+  return pro.skills?.[0]?.name || '—'
 }
 
 const VERIFY_STATUS_FILTERS = [
@@ -56,15 +81,19 @@ export function AdminProfessionalQueue() {
   const [rejectNotes, setRejectNotes] = useState('')
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<Professional | null>(null)
+  const [credentialLoading, setCredentialLoading] = useState<string | null>(null)
 
   const fetchProfessionals = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const data = await apiGet('/admin/professionals')
-      setProfessionals(extractList<Professional>(data, 'professionals'))
+      const list = extractList<Professional>(data, 'professionals')
+      setProfessionals(list)
+      return list
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load professionals')
+      return null
     } finally {
       setLoading(false)
     }
@@ -90,6 +119,24 @@ export function AdminProfessionalQueue() {
       // silent
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  // Reviewing one credential can move the professional's aggregate
+  // verificationStatus (see reviewCredential in verification.ts) — refetch
+  // and refresh the open dialog so the badge and computed status stay
+  // truthful without closing it.
+  const handleCredentialReview = async (pro: Professional, credentialId: string, status: 'VERIFIED' | 'REJECTED') => {
+    try {
+      setCredentialLoading(credentialId)
+      await apiPost(`/admin/verification/${pro.id}/credentials/${credentialId}`, { status })
+      const list = await fetchProfessionals()
+      const updated = list?.find((p) => p.id === pro.id)
+      if (updated) setSelectedPro(updated)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update credential')
+    } finally {
+      setCredentialLoading(null)
     }
   }
 
@@ -201,11 +248,11 @@ export function AdminProfessionalQueue() {
                         onClick={() => { setSelectedPro(pro); setDetailOpen(true) }}
                         className="text-xs font-semibold text-[#102A43] hover:underline"
                       >
-                        {pro.name}
+                        {getName(pro)}
                       </button>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {pro.profession || '—'}
+                      {getProfession(pro)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {pro.serviceArea || '—'}
@@ -265,12 +312,12 @@ export function AdminProfessionalQueue() {
                     onClick={() => { setSelectedPro(pro); setDetailOpen(true) }}
                     className="text-xs font-semibold text-[#102A43] hover:underline text-left"
                   >
-                    {pro.name}
+                    {getName(pro)}
                   </button>
                   {getVerificationBadge(pro.verificationStatus)}
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-2">
-                  {pro.profession && <span>{pro.profession}</span>}
+                  <span>{getProfession(pro)}</span>
                   {pro.serviceArea && (
                     <>
                       <span>•</span>
@@ -325,7 +372,7 @@ export function AdminProfessionalQueue() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {selectedPro?.name}
+              {selectedPro && getName(selectedPro)}
               {selectedPro && getVerificationBadge(selectedPro.verificationStatus)}
             </DialogTitle>
           </DialogHeader>
@@ -334,7 +381,7 @@ export function AdminProfessionalQueue() {
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <h3 className="font-semibold text-muted-foreground mb-1">Profession</h3>
-                  <p className="text-foreground">{selectedPro.profession || '—'}</p>
+                  <p className="text-foreground">{getProfession(selectedPro)}</p>
                 </div>
                 <div>
                   <h3 className="font-semibold text-muted-foreground mb-1">Service Area</h3>
@@ -377,13 +424,43 @@ export function AdminProfessionalQueue() {
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground mb-2">Credentials</h3>
                     <div className="space-y-1.5">
-                      {selectedPro.credentials.map((cred, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <span>{cred.type || 'Credential'}</span>
-                          {getVerificationBadge(cred.status || 'PENDING')}
+                      {selectedPro.credentials.map((cred) => (
+                        <div key={cred.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border/60">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground">{cred.type || 'Credential'}</p>
+                            {cred.issuer && <p className="text-[11px] text-muted-foreground truncate">{cred.issuer}</p>}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {getVerificationBadge(cred.status || 'PENDING')}
+                            <Button
+                              size="icon"
+                              className="h-6 w-6 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
+                              onClick={() => handleCredentialReview(selectedPro, cred.id, 'VERIFIED')}
+                              disabled={credentialLoading === cred.id || cred.status === 'VERIFIED'}
+                              aria-label={`Verify ${cred.type || 'credential'}`}
+                            >
+                              {credentialLoading === cred.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Check className="size-3" />
+                              )}
+                            </Button>
+                            <Button
+                              size="icon"
+                              className="h-6 w-6 bg-rezzo-danger/10 text-rezzo-danger hover:bg-rezzo-danger/20"
+                              onClick={() => handleCredentialReview(selectedPro, cred.id, 'REJECTED')}
+                              disabled={credentialLoading === cred.id || cred.status === 'REJECTED'}
+                              aria-label={`Reject ${cred.type || 'credential'}`}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
+                    <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                      The application&apos;s overall status is computed from these: every credential verified moves it to Verified (or higher, by trust score); any single rejection sends it to Needs Info instead of the whole application.
+                    </p>
                   </div>
                 </>
               )}
@@ -400,7 +477,7 @@ export function AdminProfessionalQueue() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to reject <strong>{rejectTarget?.name}</strong>? This action can be reversed later.
+              Are you sure you want to reject <strong>{rejectTarget && getName(rejectTarget)}</strong>? This action can be reversed later.
             </p>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
