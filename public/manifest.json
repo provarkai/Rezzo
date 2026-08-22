@@ -1,0 +1,33 @@
+{
+  "name": "REZZO — AI-Powered Resolution Platform",
+  "short_name": "REZZO",
+  "description": "Tell REZZO what you need and get matched with verified Nigerian professionals — home repairs, business registration, government documentation, and more.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F7F9FB",
+  "theme_color": "#102A43",
+  "lang": "en-NG",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

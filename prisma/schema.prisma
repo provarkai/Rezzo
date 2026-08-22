@@ -1,0 +1,653 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Neon's pooled endpoint (PgBouncer, transaction mode) — required at
+  // runtime on Vercel: each serverless function invocation can spin up its
+  // own Prisma Client/connection pool, and a handful of concurrent
+  // invocations is enough to exhaust Postgres's direct connection limit
+  // without pooling in front of it.
+  url       = env("DATABASE_URL")
+  // Neon's direct (unpooled) endpoint. Prisma's migration engine needs a
+  // direct connection — PgBouncer's transaction-mode pooling doesn't
+  // support the prepared statements/session state `prisma migrate` and
+  // `prisma db push` rely on. Only used for migrations, never at runtime.
+  directUrl = env("DIRECT_URL")
+}
+
+// ============ ENUMS (kept as plain String columns, not Postgres enums) ============
+// Every status/state/role field below is a String, validated against the
+// constants in src/lib/domain/constants.ts (CASE_STATES, ROLES, etc.) at
+// the application layer rather than a native Postgres enum type. That was
+// originally so the schema worked unmodified on SQLite (no enum support
+// there); it's kept that way on Postgres too so adding a new status value
+// is a constants.ts change, not a `prisma migrate` for an enum alteration.
+
+// ============ CORE IDENTITY ============
+
+model User {
+  id        String   @id @default(cuid())
+  role      String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, OPS, SUPPORT, SYSTEM
+  phone     String?
+  email     String?
+  password  String?
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile         Profile?
+  professional    Professional?
+  needs           Need[]
+  cases           Case[]
+  messages        Message[]
+  documents       Document[]
+  reviews         Review[]
+  disputesOpened  Dispute[]  @relation("DisputeOpener")
+  disputesResolved Dispute[] @relation("DisputeResolver")
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  aiJobs          AiJob[]    @relation("AiJobOwner")
+  aiJobsReviewed  AiJob[]    @relation("AiJobReviewer")
+  subscriptions    Subscription[]
+  caseParticipants  CaseParticipant[] @relation("CaseParticipants")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String?
+  avatar      String?
+  location    String?
+  state       String?
+  preferences Json?    
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ NEED / MATTER ============
+
+model Need {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  rawInput      String
+  desiredOutcome String?
+  createdAt     DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id])
+ matter Matter?
+  cases  Case[]
+}
+
+model Matter {
+  id          String   @id @default(cuid())
+  needId      String   @unique
+  summary     String?
+  categoryId  String?
+  urgency     String   @default("NORMAL") // NORMAL, HIGH, URGENT
+  confidence  Float    @default(0)
+  // What AI REZZO determined the customer will need to provide (PRD §12.2
+  // "document checklist generation"). A flat string list, not yet a
+  // per-document tracking model — checked-off state lives on
+  // Case.routeJson.checkedDocuments instead of a new table for V1.
+  requiredDocuments Json?
+  createdAt   DateTime @default(now())
+
+  need     Need  @relation(fields: [needId], references: [id])
+  cases    Case[]
+}
+
+// ============ CASE ============
+
+model Case {
+  id              String   @id @default(cuid())
+  caseNumber      String   @unique
+  userId          String
+  needId          String?
+  matterId        String?
+  status          String   @default("NEW") // NEW, UNDERSTANDING, CLARIFICATION, ROUTED, MATCHING, QUOTE, ACCEPTED, PAYMENT, FUNDED, IN_PROGRESS, PROOF, CUSTOMER_REVIEW, COMPLETED, RESOLVED, DECLINED, CANCELLED, DISPUTED, ESCALATED, REFUNDED
+  priority        String   @default("NORMAL")
+  location        String?
+  state           String?
+  routeJson       Json?
+  riskLevel       String   @default("NORMAL") // NORMAL, ELEVATED, HIGH
+  resolutionCriteria Json?
+  resolvedAt      DateTime?
+  // Trust/Payment Protection/Anti-Bypass upgrade (PRD Upgrade §14)
+  protectionStatus     String  @default("NONE") // NONE, ELIGIBLE, PROTECTED
+  protectionEligible   Boolean @default(false)
+  transactionMode      String  @default("ON_PLATFORM") // ON_PLATFORM, OFF_PLATFORM_SUSPECTED, OFF_PLATFORM_CONFIRMED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id])
+  need              Need?             @relation(fields: [needId], references: [id])
+  matter            Matter?           @relation(fields: [matterId], references: [id])
+  events            CaseEvent[]
+  participants      CaseParticipant[]
+  quotes            Quote[]
+  bookings          Booking[]
+  payments          Payment[]
+  proofItems        ProofItem[]
+  messages          Message[]
+  documents         Document[]
+  reviews           Review[]
+  disputes          Dispute[]
+  aiJobs            AiJob[]
+  notifications     Notification[]
+  communicationEvents CommunicationEvent[]
+  bypassSignals       BypassSignal[]
+  protectionBenefits  ProtectionBenefit[]
+  followUps           FollowUp[]
+}
+
+model CaseEvent {
+  id         String   @id @default(cuid())
+  caseId     String
+  eventType  String   // CASE_CREATED, AI_UNDERSTANDING, CLARIFICATION_REQUESTED, etc.
+  actorType  String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, AI_SYSTEM
+  actorId    String?
+  payload    Json?    
+  createdAt  DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model CaseParticipant {
+  id          String   @id @default(cuid())
+  caseId      String
+  userId      String
+  role        String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, SUPPORT, ADMIN
+  permissions Json?    
+  joinedAt    DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation("CaseParticipants", fields: [userId], references: [id])
+
+  @@unique([caseId, userId])
+}
+
+// ============ PROFESSIONAL ============
+
+model Professional {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  bio              String?
+  serviceArea      String?
+  availabilityStatus String @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  trustScore       Float    @default(0)
+  verificationStatus String @default("PENDING") // PENDING, NEEDS_INFO, VERIFIED, TRUSTED, EXPERT, SUSPENDED, REVOKED
+  // Trust Score upgrade (PRD Upgrade §13): on-platform performance signals,
+  // separate from the verification-based trustScore above.
+  platformPerformanceMetrics Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials  ProfessionalCredential[]
+  skills       ProfessionalSkill[]
+  services     Service[]
+  quotes       Quote[]
+  bookings     Booking[]
+  reviews      Review[]
+  verifications VerificationReview[]
+  payouts      Payout[]
+}
+
+model ProfessionalCredential {
+  id            String    @id @default(cuid())
+  professionalId String
+  type          String    // IDENTITY, LICENSE, CERTIFICATE, DEGREE
+  issuer        String?
+  reference     String?
+  expiresAt     DateTime?
+  status        String    @default("PENDING") // PENDING, VERIFIED, REJECTED
+  // Optional supporting document (an ID photo, a certificate scan) — reuses
+  // the Vault's Document model instead of a separate storage mechanism.
+  // Owned by the professional's own userId, so an admin reviewing it needs
+  // no new sharing/permission logic: getDocumentForViewer() already grants
+  // owner-or-admin access to any Document.
+  documentId    String?
+  createdAt     DateTime  @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  document     Document?    @relation(fields: [documentId], references: [id])
+}
+
+model ProfessionalSkill {
+  id            String   @id @default(cuid())
+  professionalId String
+  categoryId    String?
+  name          String
+  level         String   @default("INTERMEDIATE") // BEGINNER, INTERMEDIATE, ADVANCED, EXPERT
+  createdAt     DateTime @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+}
+
+model VerificationReview {
+  id            String   @id @default(cuid())
+  professionalId String
+  reviewerId    String?
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, NEEDS_INFO
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id])
+}
+
+// ============ SERVICES & PRICING ============
+
+model Service {
+  id             String   @id @default(cuid())
+  professionalId String
+  categoryId     String?
+  name           String
+  description    String?
+  pricingType    String   @default("QUOTE_REQUIRED") // FIXED, STARTING_FROM, QUOTE_REQUIRED, HOURLY, MILESTONE
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  prices       ServicePrice[]
+  quotes       Quote[]
+}
+
+model ServicePrice {
+  id           String   @id @default(cuid())
+  serviceId    String
+  amount       Float
+  currency     String   @default("NGN")
+  unit         String?  // per_hour, per_session, flat
+  effectiveFrom DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+// ============ QUOTES & BOOKINGS ============
+
+model Quote {
+  id             String    @id @default(cuid())
+  caseId         String
+  professionalId String
+  serviceId      String?
+  scope          String?
+  totalAmount    Float
+  currency       String    @default("NGN")
+  timeline       String?
+  milestonesJson Json?     
+  terms          String?
+  status         String    @default("SENT") // SENT, ACCEPTED, DECLINED, EXPIRED
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  case         Case        @relation(fields: [caseId], references: [id])
+  professional  Professional @relation(fields: [professionalId], references: [id])
+  service      Service?    @relation(fields: [serviceId], references: [id])
+  booking      Booking?
+  milestones   Milestone[]
+  payments     Payment[]
+}
+
+model Booking {
+  id             String   @id @default(cuid())
+  caseId         String
+  professionalId String
+  quoteId        String?  @unique
+  startsAt       DateTime?
+  endsAt         DateTime?
+  location       String?
+  status         String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  notes          String?
+  confirmedAt    DateTime? // set when the customer accepts the proposed slot; null = still awaiting confirmation
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  case        Case        @relation(fields: [caseId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+  quote       Quote?      @relation(fields: [quoteId], references: [id])
+}
+
+// ============ PAYMENTS ============
+
+model Payment {
+  id               String    @id @default(cuid())
+  caseId           String
+  quoteId          String?
+  provider         String    @default("MOCK")
+  providerReference String?
+  grossAmount      Float
+  commissionAmount Float    @default(0)
+  netAmount        Float
+  currency         String    @default("NGN")
+  status           String    @default("PENDING") // PENDING, SUCCESS, FAILED, FUNDED, PARTIALLY_FUNDED, REFUND_PENDING, REFUNDED, PAYOUT_PENDING, PAID_OUT, CHARGEBACK
+  idempotencyKey   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  case    Case     @relation(fields: [caseId], references: [id])
+  quote   Quote?   @relation(fields: [quoteId], references: [id])
+  payouts Payout[]
+  commissionEntries CommissionEntry[]
+}
+
+model Payout {
+  id               String   @id @default(cuid())
+  paymentId        String
+  professionalId   String
+  amount           Float
+  providerReference String?
+  status           String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  payment     Payment     @relation(fields: [paymentId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+}
+
+// ============ MILESTONES & PROOF ============
+
+model Milestone {
+  id          String   @id @default(cuid())
+  quoteId     String
+  title       String
+  amount      Float
+  sequence    Int
+  status      String   @default("PENDING") // PENDING, IN_PROGRESS, SUBMITTED, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quote      Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  proofItems ProofItem[]
+}
+
+model ProofItem {
+  id          String   @id @default(cuid())
+  caseId      String
+  milestoneId String?
+  type        String   @default("PHOTO") // PHOTO, VIDEO, DOCUMENT, REPORT
+  storageKey  String?
+  description String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+
+  case      Case      @relation(fields: [caseId], references: [id])
+  milestone Milestone? @relation(fields: [milestoneId], references: [id])
+}
+
+// ============ DOCUMENTS & VAULT ============
+
+model Document {
+  id           String    @id @default(cuid())
+  ownerUserId  String
+  caseId       String?
+  storageKey   String?
+  type         String?
+  name         String?
+  metadataJson Json?     
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  owner       User                    @relation(fields: [ownerUserId], references: [id])
+  case        Case?                   @relation(fields: [caseId], references: [id])
+  permissions DocumentPermission[]
+  credentials ProfessionalCredential[]
+}
+
+model DocumentPermission {
+  id              String    @id @default(cuid())
+  documentId      String
+  caseId          String?
+  recipientUserId String?
+  scope           String    @default("VIEW") // VIEW, DOWNLOAD, UPLOAD_RELATED, FULL_CASE_DOCUMENT
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+// ============ MESSAGES ============
+
+model Message {
+  id           String   @id @default(cuid())
+  caseId       String
+  senderId     String
+  channel      String   @default("APP") // APP, WHATSAPP, EMAIL
+  body         String?
+  attachmentsJson Json?  
+  createdAt    DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id])
+  sender User   @relation(fields: [senderId], references: [id])
+  @@index([caseId])
+}
+
+// ============ REVIEWS ============
+
+model Review {
+  id             String   @id @default(cuid())
+  caseId         String
+  customerId     String
+  professionalId String
+  rating         Int
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  case        Case        @relation(fields: [caseId], references: [id])
+  customer    User        @relation(fields: [customerId], references: [id])
+  professional Professional @relation(fields: [professionalId], references: [id])
+
+  @@unique([caseId, customerId])
+}
+
+// ============ DISPUTES ============
+
+model Dispute {
+  id             String   @id @default(cuid())
+  caseId         String
+  openedBy       String
+  reason         String?
+  status         String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  // PRD §10.2 dispute workflow: customer opens -> professional responds ->
+  // admin reviews and records an outcome.
+  professionalResponse    String?
+  professionalRespondedAt DateTime?
+  outcome        String?   // REFUND, PARTIAL_REFUND, RELEASE_PAYOUT, DISMISSED
+  resolutionCode String?
+  resolutionNotes String?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  case         Case  @relation(fields: [caseId], references: [id])
+  openedByUser User  @relation("DisputeOpener", fields: [openedBy], references: [id])
+  resolvedByUser User? @relation("DisputeResolver", fields: [resolvedBy], references: [id])
+}
+
+// ============ AI ============
+
+model AiJob {
+  id            String   @id @default(cuid())
+  caseId        String?
+  ownerId       String?
+  agentName     String?
+  objective     String?
+  risk          String   @default("NORMAL")
+  confidence    Float    @default(0)
+  status        String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, ESCALATED
+  highRiskCategory String? // set only when the §16.2 keyword safety net fired
+  outputJson    Json?
+  // Human escalation review (PRD §16.1) — status stays ESCALATED as the
+  // historical record; reviewedAt is what actually marks it handled.
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  case    Case?   @relation(fields: [caseId], references: [id])
+  owner   User?   @relation("AiJobOwner", fields: [ownerId], references: [id])
+  reviewer User?  @relation("AiJobReviewer", fields: [reviewedBy], references: [id])
+  toolCalls AiToolCall[]
+}
+
+model AiToolCall {
+  id          String   @id @default(cuid())
+  aiJobId     String
+  toolName    String
+  inputMeta   Json?    
+  outputMeta  Json?    
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  aiJob AiJob @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+}
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  caseId      String?
+  channel     String   @default("PUSH")
+  type        String
+  status      String   @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
+  payloadJson Json?
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  case Case? @relation(fields: [caseId], references: [id])
+  @@index([userId, readAt])
+}
+
+// ============ KNOWLEDGE / GOVERNMENT ============
+
+model KnowledgeSource {
+  id             String   @id @default(cuid())
+  category       String?
+  authorityLevel String   @default("C") // A=Official, B=Approved professional, C=General
+  url            String?
+  title          String?
+  lastChecked    DateTime?
+  active         Boolean  @default(true)
+  contentJson    Json?    
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ============ AUDIT ============
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorType    String   // USER, ADMIN, AI_SYSTEM
+  actorId      String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadataJson Json?    
+  createdAt    DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+}
+
+// ============ SUBSCRIPTIONS (future) ============
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  plan      String   @default("FREE")
+  status    String   @default("ACTIVE")
+  entitlements Json? // PRD Upgrade §12: plan-specific benefits, e.g. { priorityRouting: true, vaultReminders: true }
+  startedAt DateTime @default(now())
+  expiresAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ TRUST / PAYMENT PROTECTION / ANTI-BYPASS (PRD Upgrade) ============
+// Additive schema for the V1 PRD Upgrade: Case Continuity, Payment
+// Protection, Trust Layer, Controlled Communication and Anti-Bypass
+// Detection. See REZZO_V1_PRD_Upgrade_Trust_Payment_Protection_Anti_Bypass
+// §14 "Data/API Additions". Fields above on Case/Professional/Subscription/
+// Payment are part of the same upgrade.
+
+model CommunicationEvent {
+  id         String   @id @default(cuid())
+  caseId     String
+  actorType  String   @default("CUSTOMER") // CUSTOMER, PROFESSIONAL, ADMIN, AI_SYSTEM
+  actorId    String?
+  channel    String   @default("APP") // APP, WHATSAPP, EMAIL, SMS
+  riskSignal String?  // null when normal; short label when the Trust & Transaction Protection agent flags something
+  messageId  String?  // optional pointer to the originating Message
+  createdAt  DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model BypassSignal {
+  id          String   @id @default(cuid())
+  caseId      String
+  actorId     String?
+  signalType  String   // DIRECT_PAYMENT_DETAILS, OFF_PLATFORM_REQUEST, REPEATED_CONTACT_REQUEST, POST_ACCEPT_CANCELLATION, OTHER
+  severity    String   @default("LOW") // LOW (reminder), MEDIUM (warning), HIGH (ops review), CONFIRMED (enforcement) — mirrors the §6.2 progressive intervention levels 1-4
+  evidenceRef String?  // pointer to the CommunicationEvent/Message/etc. that triggered this signal
+  status      String   @default("OPEN") // OPEN, REVIEWED, DISMISSED, ACTION_TAKEN
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model ProtectionBenefit {
+  id         String   @id @default(cuid())
+  caseId     String
+  benefitType String  // PAYMENT_RECORD, PROOF_RECORD, DISPUTE_PATH, VERIFIED_PROFESSIONAL, CASE_HISTORY, SUPPORT, FOLLOW_UP
+  eligible   Boolean  @default(false)
+  status     String   @default("INACTIVE") // INACTIVE, ACTIVE, USED, EXPIRED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+  @@unique([caseId, benefitType])
+}
+
+model FollowUp {
+  id          String    @id @default(cuid())
+  caseId      String
+  triggerType String    // MAINTENANCE_REMINDER, WARRANTY_CHECK, DOCUMENTATION_ROUTE, TAX_COMPLIANCE_ROUTE, REPEAT_SERVICE, OTHER
+  dueAt       DateTime?
+  status      String    @default("PENDING") // PENDING, SENT, DISMISSED, COMPLETED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  @@index([caseId])
+}
+
+model CommissionEntry {
+  id               String   @id @default(cuid())
+  paymentId        String
+  baseAmount       Float
+  rate             Float
+  commissionAmount Float
+  reversalStatus   String   @default("NONE") // NONE, PARTIALLY_REVERSED, FULLY_REVERSED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+  @@index([paymentId])
+}

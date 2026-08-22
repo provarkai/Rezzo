@@ -1,0 +1,197 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-rezzo-navy: var(--rezzo-navy);
+  --color-rezzo-navy-dark: var(--rezzo-navy-dark);
+  --color-rezzo-navy-soft: var(--rezzo-navy-soft);
+  --color-rezzo-green: var(--rezzo-green);
+  --color-rezzo-gold: var(--rezzo-gold);
+  --color-rezzo-danger: var(--rezzo-danger);
+  --color-rezzo-warning: var(--rezzo-warning);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.5rem;
+  /* ============================================================
+     REZZO Design Tokens
+     ============================================================
+     This layer (and the matching `--color-rezzo-*` entries in the
+     `@theme inline` block above, which is what makes `bg-rezzo-navy`,
+     `text-rezzo-green` etc. work as real Tailwind utility classes) has
+     existed since the original transfer, but adoption stalled: `-green`,
+     `-gold` and `-danger` got used in a few dozen places, while
+     `rezzo-navy` — the single most-used brand color in the app — was
+     defined here and then never once referenced as a class anywhere;
+     every navy usage was written as raw `bg-[#102A43]`/`text-[#102A43]`
+     instead (496 raw hex occurrences across the app in total, most of
+     them navy). `-navy-dark`, `-navy-soft` and `-warning` are similarly
+     defined but effectively unused (a few `-navy-soft` hits as raw hex,
+     `-navy-dark`/`-warning` not even that).
+
+     This pass fixed the shared src/components/rezzo/* primitives (the
+     small components every case list/card renders through) to use these
+     tokens — the rest of the app's ~30 page-level components still use
+     raw hex, and weren't mechanically find-replaced here: doing that
+     across every file with no browser available in this sandbox to
+     visually confirm nothing broke felt like the wrong trade. Adopting
+     `bg-rezzo-navy`/`text-rezzo-navy` (and retiring the raw `[#102A43]`
+     arbitrary values) anywhere they appear is safe to do incrementally —
+     the token already resolves to the exact same color. */
+  --rezzo-navy: #102A43;
+  --rezzo-navy-dark: #071A2B;
+  --rezzo-navy-soft: #EAF1F8;
+  --rezzo-green: #1F7A5A;
+  --rezzo-gold: #E0A23A;
+  --rezzo-danger: #C23B3B;
+  --rezzo-warning: #B7791F;
+  /* shadcn mappings */
+  --background: #F7F9FB;
+  --foreground: #17202A;
+  --card: #FFFFFF;
+  --card-foreground: #17202A;
+  --popover: #FFFFFF;
+  --popover-foreground: #17202A;
+  --primary: #102A43;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EAF1F8;
+  --secondary-foreground: #102A43;
+  --muted: #F0F4F8;
+  --muted-foreground: #52606D;
+  --accent: #EAF1F8;
+  --accent-foreground: #102A43;
+  --destructive: #C23B3B;
+  --border: #D9E2EC;
+  --input: #D9E2EC;
+  --ring: #1F7A5A;
+  --chart-1: #1F7A5A;
+  --chart-2: #E0A23A;
+  --chart-3: #102A43;
+  --chart-4: #52606D;
+  --chart-5: #C23B3B;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #17202A;
+  --sidebar-primary: #102A43;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EAF1F8;
+  --sidebar-accent-foreground: #102A43;
+  --sidebar-border: #D9E2EC;
+  --sidebar-ring: #1F7A5A;
+}
+
+.dark {
+  --background: #0B1929;
+  --foreground: #EAF1F8;
+  --card: #102A43;
+  --card-foreground: #EAF1F8;
+  --popover: #102A43;
+  --popover-foreground: #EAF1F8;
+  --primary: #EAF1F8;
+  --primary-foreground: #102A43;
+  --secondary: #1A3A5C;
+  --secondary-foreground: #EAF1F8;
+  --muted: #1A3A5C;
+  --muted-foreground: #9FB3C8;
+  --accent: #1A3A5C;
+  --accent-foreground: #EAF1F8;
+  --destructive: #E55353;
+  --border: #243B53;
+  --input: #243B53;
+  --ring: #2ECC8B;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* REZZO-specific utilities */
+.rezzo-gradient {
+  background: linear-gradient(135deg, #102A43 0%, #1A3A5C 100%);
+}
+
+.rezzo-green-gradient {
+  background: linear-gradient(135deg, #1F7A5A 0%, #2ECC8B 100%);
+}
+
+.rezzo-card-hover {
+  transition: all 0.2s ease;
+}
+.rezzo-card-hover:hover {
+  box-shadow: 0 4px 12px rgba(16, 42, 67, 0.1);
+  transform: translateY(-1px);
+}
+
+.case-status-new { color: #52606D; background: #F0F4F8; }
+.case-status-understanding { color: #B7791F; background: #FEF5E7; }
+.case-status-clarification { color: #B7791F; background: #FEF5E7; }
+.case-status-routed { color: #2B6CB0; background: #E8F0FE; }
+.case-status-matching { color: #2B6CB0; background: #E8F0FE; }
+.case-status-quote { color: #E0A23A; background: #FEF7E0; }
+.case-status-accepted { color: #1F7A5A; background: #E6F7F0; }
+.case-status-payment { color: #E0A23A; background: #FEF7E0; }
+.case-status-funded { color: #1F7A5A; background: #E6F7F0; }
+.case-status-in_progress { color: #1F7A5A; background: #E6F7F0; }
+.case-status-proof { color: #2B6CB0; background: #E8F0FE; }
+.case-status-customer_review { color: #E0A23A; background: #FEF7E0; }
+.case-status-completed { color: #1F7A5A; background: #E6F7F0; }
+.case-status-resolved { color: #1F7A5A; background: #D4EDDA; }
+.case-status-disputed { color: #C23B3B; background: #FDE8E8; }
+.case-status-cancelled { color: #52606D; background: #F0F4F8; }
+
+/* Accessibility: honor the OS-level "reduce motion" setting (PRD/UX spec
+   §45). Nothing in the app checked this before — .rezzo-card-hover's
+   translateY, every shadcn transition, and Tailwind's animate-spin all
+   ran at full motion regardless of the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
