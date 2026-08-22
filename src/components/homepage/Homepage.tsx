@@ -796,13 +796,21 @@ function LoginDialog({
         return
       }
 
+      // Must match prisma/seed.ts exactly — these previously didn't
+      // (08010000001/08020000001 vs the seeded +2348012345678/
+      // +2348055511111), so this button never actually found the seeded
+      // accounts. It silently fell through to the register path below
+      // instead, creating a bare throwaway account with none of the
+      // seeded data (skills, services, trust score, reviews) — the
+      // professional demo in particular showed an empty dashboard rather
+      // than Tunde Bakare's real profile.
       const demoPhones: Record<string, string> = {
-        CUSTOMER: '08010000001',
-        PROFESSIONAL: '08020000001',
+        CUSTOMER: '+2348012345678',
+        PROFESSIONAL: '+2348055511111',
       }
       const demoNames: Record<string, string> = {
         CUSTOMER: 'Adebayo Okonkwo',
-        PROFESSIONAL: 'Tunde Adeyemi',
+        PROFESSIONAL: 'Tunde Bakare',
       }
       try {
         const res = await apiPost<{ user?: LoginUser; token?: string }>(
