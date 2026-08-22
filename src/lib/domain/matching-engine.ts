@@ -109,12 +109,31 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
     }
 
     const maxPossibleMatches = Math.max(skillKeywords.length + requiredExpertise.length, 1);
-    const skillScore = Math.min(MATCHING_WEIGHTS.SKILL_RELEVANCE, (skillMatchCount / maxPossibleMatches) * MATCHING_WEIGHTS.SKILL_RELEVANCE);
+
+    // A professional can tag a skill or service with an explicit categoryId
+    // (ProfessionalApply's category dropdowns — SERVICE_CATEGORIES in
+    // constants.ts). That's a deliberate, unambiguous signal — stronger
+    // than the fuzzy keyword-in-skill-name matching above, and it's the
+    // *only* signal at all for categories CATEGORY_SKILL_MAP has no
+    // keyword list for (PASSPORT/NIN/BIRTH_CERTIFICATE/DRIVERS_LICENSE all
+    // fall back to the empty default, unlike the generic GOVERNMENT_DOC
+    // bucket). An exact match gets full skill-relevance credit and bypasses
+    // the hard filter below; no match leaves skillMatchCount exactly as it
+    // was, so nothing changes for a professional/case that never sets
+    // categoryId — which is every existing seeded professional today.
+    const hasCategoryMatch = category !== 'GENERAL' && (
+      pro.skills.some((s) => s.categoryId === category) ||
+      pro.services.some((s) => s.categoryId === category)
+    );
+    const effectiveMatchCount = hasCategoryMatch ? maxPossibleMatches : skillMatchCount;
+
+    const skillScore = Math.min(MATCHING_WEIGHTS.SKILL_RELEVANCE, (effectiveMatchCount / maxPossibleMatches) * MATCHING_WEIGHTS.SKILL_RELEVANCE);
     breakdown.skillRelevance = Math.round(skillScore * 10) / 10;
     score += skillScore;
 
-    // Hard filter: if no skill match at all and we have keywords, skip
-    if (skillMatchCount === 0 && (skillKeywords.length > 0 || requiredExpertise.length > 0)) {
+    // Hard filter: if no skill match at all (by keyword or explicit
+    // category) and we have keywords, skip
+    if (effectiveMatchCount === 0 && (skillKeywords.length > 0 || requiredExpertise.length > 0)) {
       continue;
     }
 
@@ -148,10 +167,14 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
     const explanationParts: string[] = [];
     if (breakdown.skillRelevance > 20) {
       const matchedSkills = pro.skills
-        .filter((s) => skillKeywords.some((kw) => s.name.toLowerCase().includes(kw)))
+        .filter((s) => skillKeywords.some((kw) => s.name.toLowerCase().includes(kw)) || s.categoryId === category)
         .map((s) => s.name);
       if (matchedSkills.length > 0) {
         explanationParts.push(`relevant expertise in ${matchedSkills.join(', ')}`);
+      } else if (hasCategoryMatch) {
+        // The category match came from a Service, not a Skill — matchedSkills
+        // above is empty, but the score credit (and the reason for it) is real.
+        explanationParts.push('offers services in this category');
       }
     }
     if (isVerificationActive(pro.verificationStatus)) {
