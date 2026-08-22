@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useRezzoStore, apiPost } from '@/store/rezzo-store'
+import { useRezzoStore, apiPost, ApiError } from '@/store/rezzo-store'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -733,20 +733,34 @@ function LoginDialog({
           setOpen(false)
           return
         }
-      } catch { /* fall through to register */ }
+      } catch { /* fall through to register — a first-time visitor with no
+                   account yet is the common case this is for */ }
       const regName = name.trim() || (role === 'PROFESSIONAL' ? 'Professional' : 'Customer')
-      const res = await apiPost<{ user: { id: string; displayName?: string; name?: string; phone: string; role: string }; token?: string }>(
-        '/auth/register',
-        { phone: phone.trim(), password, name: regName, role }
-      )
-      if (res.token) setAuthToken(res.token)
-      setCurrentUser({
-        id: res.user.id,
-        name: res.user.displayName || res.user.name || regName,
-        phone: res.user.phone,
-        role,
-      })
-      setOpen(false)
+      try {
+        const res = await apiPost<{ user: { id: string; displayName?: string; name?: string; phone: string; role: string }; token?: string }>(
+          '/auth/register',
+          { phone: phone.trim(), password, name: regName, role }
+        )
+        if (res.token) setAuthToken(res.token)
+        setCurrentUser({
+          id: res.user.id,
+          name: res.user.displayName || res.user.name || regName,
+          phone: res.user.phone,
+          role,
+        })
+        setOpen(false)
+      } catch (registerErr) {
+        // Register failing with CONFLICT right after login already failed
+        // for the same phone means this phone has an account — the login
+        // attempt above didn't fail for lack of one, it failed because the
+        // password was wrong. Surfacing register's own "already exists"
+        // text here said nothing about a password and read like an
+        // unrelated error to someone who just mistyped theirs.
+        if (registerErr instanceof ApiError && registerErr.code === 'CONFLICT') {
+          throw new Error('Invalid phone/email or password')
+        }
+        throw registerErr
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in. Please try again.')
     } finally {
@@ -809,15 +823,24 @@ function LoginDialog({
           setOpen(false)
           return
         }
-      } catch { /* fall through */ }
-      const regRes = await apiPost<{ user: LoginUser; token?: string }>(
-        '/auth/register',
-        { phone: demoPhones[demoRole], password: DEMO_ACCOUNT_PASSWORD, name: demoNames[demoRole], role: demoRole }
-      )
-      const u = regRes.user
-      if (regRes.token) setAuthToken(regRes.token)
-      setCurrentUser({ id: u.id, name: u.displayName || u.name || demoNames[demoRole], phone: u.phone, email: u.email, role: demoRole })
-      setOpen(false)
+      } catch { /* fall through — no account under this demo phone yet */ }
+      try {
+        const regRes = await apiPost<{ user: LoginUser; token?: string }>(
+          '/auth/register',
+          { phone: demoPhones[demoRole], password: DEMO_ACCOUNT_PASSWORD, name: demoNames[demoRole], role: demoRole }
+        )
+        const u = regRes.user
+        if (regRes.token) setAuthToken(regRes.token)
+        setCurrentUser({ id: u.id, name: u.displayName || u.name || demoNames[demoRole], phone: u.phone, email: u.email, role: demoRole })
+        setOpen(false)
+      } catch (registerErr) {
+        // This demo phone exists under a different password than the
+        // shared demo one — same reasoning as handleSubmit above.
+        if (registerErr instanceof ApiError && registerErr.code === 'CONFLICT') {
+          throw new Error('This demo account is unavailable right now')
+        }
+        throw registerErr
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in. Please try again.')
     } finally {

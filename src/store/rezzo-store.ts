@@ -138,21 +138,44 @@ export class AuthError extends Error {
   }
 }
 
+// Carries the server's error `code` (VALIDATION_ERROR, CONFLICT,
+// AUTH_INVALID_CREDENTIALS, ...) alongside the message, so a caller can
+// branch on the actual failure reason instead of matching message text.
+export class ApiError extends Error {
+  code?: string
+  status: number
+  constructor(message: string, code: string | undefined, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.status = status
+  }
+}
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // A 401 only means "your session expired" when this request actually
+  // carried a token that got rejected. /auth/login also answers with 401
+  // for plain wrong-phone-or-password — on a request that never had a
+  // token to begin with, that isn't a session expiring, and treating it
+  // as one discarded login's real "Invalid phone/email or password"
+  // message in favor of a misleading "Session expired" for every visitor
+  // who just mistyped their password.
+  const hadToken = !!useRezzoStore.getState().authToken
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: { ...getHeaders(), ...(options.headers as Record<string, string> || {}) },
   })
 
-  // Handle 401 — token expired or invalid
-  if (res.status === 401) {
+  const json = await res.json().catch(() => ({}))
+
+  if (res.status === 401 && hadToken) {
     useRezzoStore.getState().logout()
     throw new AuthError('Session expired. Please sign in again.')
   }
 
-  const json = await res.json()
   if (!res.ok) {
-    throw new Error(json.error?.message || 'Request failed')
+    throw new ApiError(json.error?.message || 'Request failed', json.error?.code, res.status)
   }
   return json.data !== undefined ? json.data : json
 }
