@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export type UserRole = 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN'
 export type AppView = 'landing' | 'customer' | 'professional' | 'admin'
+export type ActiveMode = 'CUSTOMER' | 'PROFESSIONAL'
 
 interface UserState {
   id: string
@@ -9,6 +10,11 @@ interface UserState {
   name: string
   phone?: string
   email?: string
+  /** Present when this account also has a Professional record — independent
+   *  of `role`, since applying to become a professional doesn't remove
+   *  customer access (see AccountModeChooser / rezzo_active_mode below). */
+  professionalId?: string | null
+  verificationStatus?: string | null
 }
 
 interface RezzoState {
@@ -16,6 +22,15 @@ interface RezzoState {
   authToken: string | null
   setCurrentUser: (user: UserState | null) => void
   setAuthToken: (token: string | null) => void
+  /** Which side of a dual customer+professional account is currently in
+   *  use. Only one is ever active at a time — chosen right after login
+   *  (immediately, with no prompt, for accounts that only have one side)
+   *  and changed only via an explicit "switch account" action, never a
+   *  live in-session toggle. Persisted so a page refresh doesn't bounce a
+   *  professional back into the chooser. Null for admins (not applicable)
+   *  and for a dual account that hasn't chosen yet. */
+  activeMode: ActiveMode | null
+  setActiveMode: (mode: ActiveMode | null) => void
   logout: () => void
   currentView: AppView
   setCurrentView: (view: AppView) => void
@@ -36,7 +51,15 @@ interface RezzoState {
 export const useRezzoStore = create<RezzoState>((set) => ({
   currentUser: null,
   authToken: typeof window !== 'undefined' ? localStorage.getItem('rezzo_token') : null,
-  setCurrentUser: (user) => set({ currentUser: user }),
+  setCurrentUser: (user) => {
+    // `currentUser` itself isn't persisted (a refresh always lands back on
+    // Homepage and requires signing in again), but `activeMode` is — so
+    // without this, a stale mode from a previous account/session on the
+    // same browser could leak into a fresh login. Every call here means a
+    // fresh identity (or a logout), so always force a fresh mode decision.
+    if (typeof window !== 'undefined') localStorage.removeItem('rezzo_active_mode')
+    set({ currentUser: user, activeMode: null })
+  },
   setAuthToken: (token) => {
     if (typeof window !== 'undefined') {
       if (token) localStorage.setItem('rezzo_token', token)
@@ -44,9 +67,20 @@ export const useRezzoStore = create<RezzoState>((set) => ({
     }
     set({ authToken: token })
   },
+  activeMode: (typeof window !== 'undefined' ? localStorage.getItem('rezzo_active_mode') : null) as ActiveMode | null,
+  setActiveMode: (mode) => {
+    if (typeof window !== 'undefined') {
+      if (mode) localStorage.setItem('rezzo_active_mode', mode)
+      else localStorage.removeItem('rezzo_active_mode')
+    }
+    set({ activeMode: mode })
+  },
   logout: () => {
-    if (typeof window !== 'undefined') localStorage.removeItem('rezzo_token')
-    set({ currentUser: null, authToken: null, currentView: 'landing' })
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('rezzo_token')
+      localStorage.removeItem('rezzo_active_mode')
+    }
+    set({ currentUser: null, authToken: null, activeMode: null, currentView: 'landing' })
   },
   currentView: 'landing',
   setCurrentView: (view) => set({ currentView: view }),

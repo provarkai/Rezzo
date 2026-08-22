@@ -2,6 +2,8 @@
 
 import { useRezzoStore } from '@/store/rezzo-store'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { ProfessionalDashboard } from './ProfessionalDashboard'
 import { ProfessionalCaseList } from './ProfessionalCaseList'
 import { ProfessionalCaseDetail } from './ProfessionalCaseDetail'
@@ -17,6 +19,8 @@ import {
   Shield,
   User,
   BadgeCheck,
+  Repeat,
+  LogOut,
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -176,6 +180,21 @@ export function ProfessionalApp() {
 
 function ProfessionalProfilePlaceholder() {
   const currentUser = useRezzoStore((s) => s.currentUser)
+  const setActiveMode = useRezzoStore((s) => s.setActiveMode)
+  const logout = useRezzoStore((s) => s.logout)
+  const setCurrentView = useRezzoStore((s) => s.setCurrentView)
+
+  // See CustomerProfile.tsx's equivalent — this account also has customer
+  // access underneath the professional identity (every non-admin account
+  // does); "Switch account" just clears the active mode, it never logs out.
+  const isDual = !!currentUser?.professionalId
+
+  const handleLogout = () => {
+    logout()
+    setCurrentView('landing')
+    toast.success('Logged out successfully')
+  }
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
@@ -202,6 +221,26 @@ function ProfessionalProfilePlaceholder() {
           </div>
         </div>
       </Card>
+      <div className="flex flex-col gap-3">
+        {isDual && (
+          <Button
+            variant="outline"
+            className="w-full rounded-xl h-12 text-sm font-medium border-rezzo-navy/20 text-rezzo-navy hover:bg-rezzo-navy/5 gap-2"
+            onClick={() => setActiveMode(null)}
+          >
+            <Repeat className="size-4" />
+            Switch to Customer Account
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          className="w-full rounded-xl h-12 text-sm font-medium border-rezzo-danger/30 text-rezzo-danger hover:bg-rezzo-danger/5 gap-2"
+          onClick={handleLogout}
+        >
+          <LogOut className="size-4" />
+          Log Out
+        </Button>
+      </div>
     </div>
   )
 }

@@ -716,7 +716,7 @@ function LoginDialog({
     setError(null)
     try {
       try {
-        const res = await apiPost<{ user?: { id: string; displayName?: string; name?: string; phone: string; role: string }; token?: string }>(
+        const res = await apiPost<{ user?: { id: string; displayName?: string; name?: string; phone: string; role: string; professionalId?: string | null; verificationStatus?: string | null }; token?: string }>(
           '/auth/login',
           { phone: phone.trim(), password }
         )
@@ -727,6 +727,8 @@ function LoginDialog({
             name: res.user.displayName || res.user.name || 'User',
             phone: res.user.phone,
             role: res.user.role as 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN',
+            professionalId: res.user.professionalId,
+            verificationStatus: res.user.verificationStatus,
           })
           setOpen(false)
           return
@@ -756,7 +758,7 @@ function LoginDialog({
     setLoading(true)
     setError(null)
     try {
-      interface LoginUser { id: string; displayName?: string; name?: string; phone?: string; email?: string; role: string }
+      interface LoginUser { id: string; displayName?: string; name?: string; phone?: string; email?: string; role: string; professionalId?: string | null; verificationStatus?: string | null }
 
       // The seeded admin account only ever exists via the seed script (public
       // self-registration can no longer create admins) — log in only, with
@@ -773,6 +775,8 @@ function LoginDialog({
           name: res.user.displayName || res.user.name || 'REZZO Admin',
           email: res.user.email,
           role: res.user.role as 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN',
+          professionalId: res.user.professionalId,
+          verificationStatus: res.user.verificationStatus,
         })
         setOpen(false)
         return
@@ -799,6 +803,8 @@ function LoginDialog({
             phone: res.user.phone,
             email: res.user.email,
             role: res.user.role as 'CUSTOMER' | 'PROFESSIONAL' | 'ADMIN',
+            professionalId: res.user.professionalId,
+            verificationStatus: res.user.verificationStatus,
           })
           setOpen(false)
           return

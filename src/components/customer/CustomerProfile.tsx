@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut, Settings, HelpCircle, ChevronRight, MessageSquare, Shield } from 'lucide-react'
+import { LogOut, Settings, HelpCircle, ChevronRight, MessageSquare, Shield, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
 
 const MENU_ITEMS = [
@@ -18,12 +18,19 @@ export function CustomerProfile() {
   const currentUser = useRezzoStore((s) => s.currentUser)
   const logout = useRezzoStore((s) => s.logout)
   const setCurrentView = useRezzoStore((s) => s.setCurrentView)
+  const setActiveMode = useRezzoStore((s) => s.setActiveMode)
 
   const handleLogout = () => {
     logout()
     setCurrentView('landing')
     toast.success('Logged out successfully')
   }
+
+  // Accounts that also hold a Professional record can switch sides without
+  // logging out — only one mode is ever active at once, so this clears the
+  // choice and drops them back on AccountModeChooser (see src/app/page.tsx).
+  const isDual = !!currentUser?.professionalId
+  const handleSwitchAccount = () => setActiveMode(null)
 
   const initials = currentUser?.name
     ?.split(' ')
@@ -84,6 +91,20 @@ export function CustomerProfile() {
           )
         })}
       </div>
+
+      {isDual && (
+        <>
+          <Separator />
+          <Button
+            variant="outline"
+            className="w-full rounded-xl h-12 text-sm font-medium border-rezzo-navy/20 text-rezzo-navy hover:bg-rezzo-navy/5 gap-2"
+            onClick={handleSwitchAccount}
+          >
+            <Repeat className="size-4" />
+            Switch to Professional Account
+          </Button>
+        </>
+      )}
 
       <Separator />
 
