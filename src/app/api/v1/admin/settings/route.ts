@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
 import { successResponse, errorResponse, COMMISSION_RATE, CURRENCY } from '@/lib/domain/constants';
 import { isPaystackConfigured } from '@/lib/domain/payment-providers/paystack';
-import { isWhatsAppConfigured } from '@/lib/domain/whatsapp-service';
+import { isWhatsAppConfigured } from '@/lib/domain/messaging-providers/whatsapp';
 
 // Read-only. There's no Settings/Config table — the things V1 actually
 // treats as configuration are environment variables and constants.ts, so
