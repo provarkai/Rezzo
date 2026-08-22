@@ -3,6 +3,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
+import { uploadDocument } from './document-service';
 
 // ============ TYPES ============
 
@@ -21,6 +22,13 @@ export interface ApplicationData {
     type: string;
     issuer?: string;
     reference?: string;
+    // A supporting document — an ID photo, a certificate scan — is
+    // optional per credential. When present it's uploaded through the
+    // Vault's own uploadDocument() (document-service.ts) rather than a
+    // separate storage path, and the resulting Document is what an admin
+    // actually reviews in AdminProfessionalQueue, not just the type/issuer
+    // text that was all reviewCredential() had to go on before.
+    document?: { fileName: string; mimeType: string; dataBase64: string };
   }[];
 }
 
@@ -50,14 +58,29 @@ export async function submitApplication(
     },
   });
 
-  // Create credentials
+  // Create credentials — each one's supporting document, if attached, is
+  // owned by the applicant's own userId (not the not-yet-fully-created
+  // Professional record), matching how every other Vault document is owned.
+  // A failed upload fails the whole application rather than silently
+  // creating a credential with a missing document nobody would notice.
   for (const cred of applicationData.credentials) {
+    let documentId: string | null = null;
+    if (cred.document) {
+      const doc = await uploadDocument(userId, {
+        name: cred.document.fileName || `${cred.type} document`,
+        type: 'CREDENTIAL',
+        mimeType: cred.document.mimeType,
+        dataBase64: cred.document.dataBase64,
+      });
+      documentId = doc.id;
+    }
     await db.professionalCredential.create({
       data: {
         professionalId: professional.id,
         type: cred.type,
         issuer: cred.issuer || null,
         reference: cred.reference || null,
+        documentId,
         status: 'PENDING',
       },
     });

@@ -26,6 +26,15 @@ const applySchema = z.object({
     type: z.enum(['IDENTITY', 'LICENSE', 'CERTIFICATE', 'DEGREE']),
     issuer: z.string().optional(),
     reference: z.string().optional(),
+    // Optional supporting document — uploadDocument() (called from
+    // submitApplication) enforces the actual size cap; this just checks
+    // the shape is complete rather than a half-filled object slipping
+    // through as neither "no document" nor a usable one.
+    document: z.object({
+      fileName: z.string().min(1),
+      mimeType: z.string().min(1),
+      dataBase64: z.string().min(1),
+    }).optional(),
   })).min(1, 'At least one credential is required'),
 });
 

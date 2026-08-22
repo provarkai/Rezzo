@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, Loader2, Wrench, LogOut } from 'lucide-react'
+import { Plus, Trash2, Loader2, Wrench, LogOut, Upload, FileCheck2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Mirrors src/app/api/v1/professionals/apply/route.ts's applySchema — kept
@@ -22,11 +22,33 @@ const SKILL_LEVELS = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'] as const
 const PRICING_TYPES = ['QUOTE_REQUIRED', 'FIXED', 'STARTING_FROM', 'HOURLY', 'MILESTONE'] as const
 const CREDENTIAL_TYPES = ['IDENTITY', 'LICENSE', 'CERTIFICATE', 'DEGREE'] as const
 
+// Matches MAX_DOCUMENT_BYTES in document-service.ts — can't import it
+// directly, that module pulls in @/lib/db (server-only). Kept in sync by
+// hand; rejecting oversized files client-side just avoids a round trip,
+// the server enforces the real limit regardless.
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
+
 interface SkillRow { name: string; level: typeof SKILL_LEVELS[number]; categoryId: string }
 interface ServiceRow { name: string; description: string; pricingType: typeof PRICING_TYPES[number]; amount: string; unit: string; categoryId: string }
-interface CredentialRow { type: typeof CREDENTIAL_TYPES[number]; issuer: string; reference: string }
+interface CredentialDocument { fileName: string; mimeType: string; dataBase64: string }
+interface CredentialRow { type: typeof CREDENTIAL_TYPES[number]; issuer: string; reference: string; document?: CredentialDocument }
 
 const selectClass = 'h-10 w-full rounded-lg border border-input bg-transparent px-3 text-sm text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none transition-all'
+
+// FileReader.readAsDataURL() yields "data:<mime>;base64,<payload>" —
+// uploadDocument() (document-service.ts) wants just <payload>.
+function readFileAsBase64(file: File): Promise<{ mimeType: string; dataBase64: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      const commaIndex = result.indexOf(',')
+      resolve({ mimeType: file.type || 'application/octet-stream', dataBase64: result.slice(commaIndex + 1) })
+    }
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
 
 export function ProfessionalApply() {
   const currentUser = useRezzoStore((s) => s.currentUser)
@@ -61,6 +83,23 @@ export function ProfessionalApply() {
     setServices((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   const updateCredential = (i: number, patch: Partial<CredentialRow>) =>
     setCredentials((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+
+  const handleCredentialFile = async (i: number, file: File | null) => {
+    if (!file) {
+      updateCredential(i, { document: undefined })
+      return
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      toast.error(`${file.name} is too large — max ${MAX_DOCUMENT_BYTES / (1024 * 1024)}MB`)
+      return
+    }
+    try {
+      const { mimeType, dataBase64 } = await readFileAsBase64(file)
+      updateCredential(i, { document: { fileName: file.name, mimeType, dataBase64 } })
+    } catch {
+      toast.error(`Could not read ${file.name}`)
+    }
+  }
 
   const handleSubmit = async () => {
     setError(null)
@@ -103,6 +142,7 @@ export function ProfessionalApply() {
             type: c.type,
             issuer: c.issuer.trim() || undefined,
             reference: c.reference.trim() || undefined,
+            document: c.document,
           })),
         }
       )
@@ -309,38 +349,70 @@ export function ProfessionalApply() {
             </Button>
           </div>
           {credentials.map((cred, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <select
-                value={cred.type}
-                onChange={(e) => updateCredential(i, { type: e.target.value as CredentialRow['type'] })}
-                aria-label={`Credential ${i + 1} type`}
-                className={`${selectClass} w-36 shrink-0`}
-              >
-                {CREDENTIAL_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
-              </select>
-              <Input
-                value={cred.issuer}
-                onChange={(e) => updateCredential(i, { issuer: e.target.value })}
-                placeholder="Issuer (optional)"
-                aria-label={`Credential ${i + 1} issuer`}
-                className="flex-1"
-              />
-              <Input
-                value={cred.reference}
-                onChange={(e) => updateCredential(i, { reference: e.target.value })}
-                placeholder="Reference number (optional)"
-                aria-label={`Credential ${i + 1} reference`}
-                className="flex-1"
-              />
-              {credentials.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setCredentials((rows) => rows.filter((_, idx) => idx !== i))}
-                  aria-label={`Remove credential ${i + 1}`}
-                  className="p-2 text-muted-foreground hover:text-rezzo-danger transition-colors shrink-0"
+            <div key={i} className="flex flex-col gap-2 pb-3 border-b border-border/60 last:border-0 last:pb-0">
+              <div className="flex items-center gap-2">
+                <select
+                  value={cred.type}
+                  onChange={(e) => updateCredential(i, { type: e.target.value as CredentialRow['type'] })}
+                  aria-label={`Credential ${i + 1} type`}
+                  className={`${selectClass} w-36 shrink-0`}
                 >
-                  <Trash2 className="size-4" />
-                </button>
+                  {CREDENTIAL_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
+                </select>
+                <Input
+                  value={cred.issuer}
+                  onChange={(e) => updateCredential(i, { issuer: e.target.value })}
+                  placeholder="Issuer (optional)"
+                  aria-label={`Credential ${i + 1} issuer`}
+                  className="flex-1"
+                />
+                <Input
+                  value={cred.reference}
+                  onChange={(e) => updateCredential(i, { reference: e.target.value })}
+                  placeholder="Reference number (optional)"
+                  aria-label={`Credential ${i + 1} reference`}
+                  className="flex-1"
+                />
+                {credentials.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCredentials((rows) => rows.filter((_, idx) => idx !== i))}
+                    aria-label={`Remove credential ${i + 1}`}
+                    className="p-2 text-muted-foreground hover:text-rezzo-danger transition-colors shrink-0"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Supporting document — optional, but this is what actually
+                  lets an admin verify the claim above instead of taking the
+                  type/issuer/reference text on faith. */}
+              {cred.document ? (
+                <div className="flex items-center gap-2 text-xs text-rezzo-navy bg-rezzo-green/5 border border-rezzo-green/20 rounded-lg px-3 py-2">
+                  <FileCheck2 className="size-3.5 text-rezzo-green shrink-0" />
+                  <span className="flex-1 min-w-0 truncate">{cred.document.fileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCredentialFile(i, null)}
+                    aria-label={`Remove attached file for credential ${i + 1}`}
+                    className="text-muted-foreground hover:text-rezzo-danger transition-colors shrink-0"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-rezzo-navy cursor-pointer transition-colors w-fit">
+                  <Upload className="size-3.5" />
+                  <span>Attach ID, certificate, or license (optional, max 4MB)</span>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="sr-only"
+                    aria-label={`Attach document for credential ${i + 1}`}
+                    onChange={(e) => handleCredentialFile(i, e.target.files?.[0] || null)}
+                  />
+                </label>
               )}
             </div>
           ))}

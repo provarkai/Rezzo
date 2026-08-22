@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/table'
 import { TrustScore } from '@/components/rezzo/TrustScore'
 import { apiGet, apiPost, extractList } from '@/store/rezzo-store'
-import { Check, X, Shield, MapPin, Loader2 } from 'lucide-react'
+import { Check, X, Shield, MapPin, Loader2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CredentialItem {
@@ -32,6 +32,7 @@ interface CredentialItem {
   status: string
   issuer?: string | null
   reference?: string | null
+  documentId?: string | null
 }
 
 // GET /admin/professionals returns raw Prisma rows (user -> profile ->
@@ -137,6 +138,34 @@ export function AdminProfessionalQueue() {
       toast.error(err instanceof Error ? err.message : 'Failed to update credential')
     } finally {
       setCredentialLoading(null)
+    }
+  }
+
+  // Opens a credential's supporting document (its Document.storageKey — a
+  // data URI, see document-service.ts) in a new tab. Converts it to a blob
+  // URL first rather than navigating straight to the data URI: some
+  // browsers balk at multi-MB data URIs in window.open, a blob URL doesn't
+  // have that problem. getDocumentForViewer() grants this admin access
+  // automatically — the document is owned by the professional's own
+  // userId, and owner-or-admin is already enough, no separate share needed.
+  const [documentLoading, setDocumentLoading] = useState<string | null>(null)
+  const handleViewDocument = async (documentId: string) => {
+    try {
+      setDocumentLoading(documentId)
+      const data = await apiGet<{ document: { storageKey: string | null } }>(`/documents/${documentId}`)
+      if (!data.document.storageKey) {
+        toast.error('This document has no content')
+        return
+      }
+      const res = await fetch(data.document.storageKey)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not open document')
+    } finally {
+      setDocumentLoading(null)
     }
   }
 
@@ -432,6 +461,22 @@ export function AdminProfessionalQueue() {
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {getVerificationBadge(cred.status || 'PENDING')}
+                            {cred.documentId && (
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-6 w-6"
+                                onClick={() => handleViewDocument(cred.documentId!)}
+                                disabled={documentLoading === cred.documentId}
+                                aria-label={`View document for ${cred.type || 'credential'}`}
+                              >
+                                {documentLoading === cred.documentId ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <FileText className="size-3" />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               className="h-6 w-6 bg-rezzo-green/10 text-rezzo-green hover:bg-rezzo-green/20"
