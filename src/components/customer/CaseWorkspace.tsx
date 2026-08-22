@@ -592,7 +592,7 @@ export function CaseWorkspace() {
         <div className="sticky top-0 bg-white border-b border-border/60 px-4 py-3">
           <Skeleton className="h-8 w-32" />
         </div>
-        <div className="px-4 pt-4 flex flex-col gap-4 max-w-lg mx-auto">
+        <div className="px-4 pt-4 flex flex-col gap-4 max-w-lg md:max-w-2xl mx-auto">
           <Skeleton className="h-24 w-full rounded-xl" />
           <Skeleton className="h-32 w-full rounded-xl" />
           <Skeleton className="h-20 w-full rounded-xl" />
@@ -639,7 +639,7 @@ export function CaseWorkspace() {
     <div className="min-h-screen bg-[#F7F9FB] flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-border/60 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
+        <div className="flex items-center justify-between max-w-lg md:max-w-2xl mx-auto">
           <button
             onClick={handleBack}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -653,9 +653,13 @@ export function CaseWorkspace() {
         </div>
       </header>
 
-      {/* Content */}
+      {/* Content — widened on desktop (md:max-w-2xl) so a case isn't
+          squeezed into a 512px phone-width column on a wide screen; the
+          internal cards stay single-column (unlike ProfessionalCaseDetail's
+          lg:grid-cols-3 split) — this file's dozen status-branched sections
+          weren't restructured into a multi-column layout in this pass. */}
       <ScrollArea className="flex-1">
-        <div className="max-w-lg mx-auto px-4 pt-4 pb-32 flex flex-col gap-4">
+        <div className="max-w-lg md:max-w-2xl mx-auto px-4 pt-4 pb-32 flex flex-col gap-4">
 
           {/* Case Header Card */}
           <Card className="p-4 gap-3">

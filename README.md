@@ -56,6 +56,12 @@ The service worker is intentionally conservative given this is a live marketplac
 
 Not done: push notifications (needs a backend subscription store and a VAPID key pair, not attempted here) and background sync for actions taken while offline (the app doesn't queue any writes today, online or off — this would be new behavior, not just a service worker addition).
 
+### Desktop layout
+
+The decision: desktop-first isn't the same question as web-vs-native (see PWA above) — this is about how the layout itself uses a wide screen, and both surfaces need to work well. `ProfessionalApp`/`AdminApp` already had a proper responsive shell (a persistent sidebar on `md:` and up, bottom tabs below it) since the original transfer; `CustomerApp` — the surface the largest user group actually lives in — didn't. Every screen rendered inside a fixed `max-w-lg` (512px) column with a permanent mobile bottom-tab bar, on any screen size, desktop included. `CustomerApp` now matches the same sidebar/bottom-tabs pattern as the other two surfaces, and `CaseWorkspace` (the case detail view — quotes, payments, messages, disputes) got its column width widened responsively so it isn't squeezed into a phone-width strip on a wide monitor.
+
+Not done: a full multi-column desktop redesign of `CaseWorkspace` itself (`ProfessionalCaseDetail` already has one — `grid lg:grid-cols-3` — but that file is ~200 lines; `CaseWorkspace` is ~1,600 lines across a dozen status-branched sections, and restructuring all of them into a verified-safe grid layout without a browser to check against wasn't attempted in this pass). It's wider on desktop now, but still single-column.
+
 ### Design Tokens
 
 Brand colors are Tailwind utility classes (`bg-rezzo-navy`, `text-rezzo-green`, `bg-rezzo-gold`, `text-rezzo-danger`, `bg-rezzo-warning`) backed by CSS custom properties in `src/app/globals.css`. The token layer has existed since the transfer, but most of the app was written with raw arbitrary hex instead (`bg-[#102A43]`) — `rezzo-navy` in particular, the most-used brand color, had zero adoption before this pass. The shared `src/components/rezzo/*` primitives now use the tokens; the rest of the app (~30 page components, ~500 raw hex occurrences) is a known, documented gap — see the comment above `:root` in `globals.css` for the full picture and why a blind mechanical find-replace across every file wasn't the right call without a browser in this sandbox to verify against.
