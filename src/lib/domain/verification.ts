@@ -4,6 +4,7 @@
 
 import { db } from '@/lib/db';
 import { uploadDocument } from './document-service';
+import { PUBLIC_USER_SELECT } from './constants';
 
 // ============ TYPES ============
 
@@ -340,7 +341,7 @@ export async function getProfessionalProfile(professionalId: string) {
     where: { id: professionalId },
     include: {
       user: {
-        include: { profile: true },
+        select: PUBLIC_USER_SELECT,
       },
       credentials: true,
       skills: true,
@@ -397,7 +398,7 @@ export async function listProfessionals(
     db.professional.findMany({
       where,
       include: {
-        user: { include: { profile: true } },
+        user: { select: PUBLIC_USER_SELECT },
         skills: true,
         services: {
           where: { active: true },

@@ -147,14 +147,26 @@ export async function confirmPayment(
 
   const ref = providerReference || `mock_ref_${Date.now()}`;
 
-  // Update payment to SUCCESS
-  const updated = await db.payment.update({
-    where: { id: paymentId },
+  // The check above and this write aren't atomic — two concurrent callers
+  // (a Paystack webhook retry racing the original delivery, or a user
+  // double-clicking the MOCK confirm button) can both read PENDING before
+  // either write lands, then both fall through and double-fund the case:
+  // two commissionEntry rows, two payout attempts, two FUNDED transitions.
+  // SQLite's single-writer lock hid this in dev; Postgres in production
+  // won't. Guard it with an atomic conditional update — only the caller
+  // that actually flips PENDING -> SUCCESS gets to proceed.
+  const claimed = await db.payment.updateMany({
+    where: { id: paymentId, status: 'PENDING' },
     data: {
       status: 'SUCCESS',
       providerReference: ref,
     },
   });
+  if (claimed.count === 0) {
+    // We read PENDING above, but the conditional update above claimed
+    // zero rows — a concurrent call already flipped it first.
+    throw new Error('Payment was already confirmed by a concurrent request');
+  }
 
   // Then immediately fund (simulating instant settlement)
   const funded = await db.payment.update({

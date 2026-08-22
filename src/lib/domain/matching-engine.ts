@@ -3,7 +3,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
-import { CASE_EVENTS, ACTIVE_VERIFICATION_STATUSES, AVAILABILITY_STATUSES, MATCHING_WEIGHTS, VERIFICATION_TIER_BONUS, isVerificationActive } from './constants';
+import { CASE_EVENTS, ACTIVE_VERIFICATION_STATUSES, AVAILABILITY_STATUSES, MATCHING_WEIGHTS, VERIFICATION_TIER_BONUS, isVerificationActive, PUBLIC_USER_SELECT } from './constants';
 import { addCaseEvent } from './case-engine';
 
 // ============ TYPES ============
@@ -75,7 +75,7 @@ export async function findMatches(caseId: string): Promise<MatchingResult> {
       availabilityStatus: AVAILABILITY_STATUSES.ACTIVE,
     },
     include: {
-      user: { include: { profile: true } },
+      user: { select: PUBLIC_USER_SELECT },
       skills: true,
       services: {
         where: { active: true },

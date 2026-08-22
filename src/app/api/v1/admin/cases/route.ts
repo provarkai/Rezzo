@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { successResponse, errorResponse, PUBLIC_USER_SELECT } from '@/lib/domain/constants';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           need: true,
-          user: { include: { profile: true } },
+          user: { select: PUBLIC_USER_SELECT },
           _count: {
             select: { events: true, quotes: true, messages: true, disputes: true },
           },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { successResponse, errorResponse, PUBLIC_USER_SELECT } from '@/lib/domain/constants';
 import { z } from 'zod';
 
 const guestLookupSchema = z.object({
@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
       include: {
         need: true,
         matter: true,
-        user: { include: { profile: true } },
+        user: { select: PUBLIC_USER_SELECT },
         participants: {
-          include: { user: { include: { profile: true, professional: true } } },
+          include: { user: { select: { ...PUBLIC_USER_SELECT, professional: true } } },
         },
         events: {
           orderBy: { createdAt: 'desc' },
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         },
         quotes: {
           include: {
-            professional: { include: { user: { include: { profile: true } } } },
+            professional: { include: { user: { select: PUBLIC_USER_SELECT } } },
           },
           orderBy: { createdAt: 'desc' },
           take: 5,
@@ -106,16 +106,16 @@ export async function POST(request: NextRequest) {
       quotes: caseRecord.quotes.map((q) => ({
         id: q.id,
         status: q.status,
-        amount: q.amount,
+        amount: q.totalAmount,
         currency: q.currency,
-        professionalName: q.professional?.user?.profile?.displayName || q.professional?.user?.name || 'Professional',
+        professionalName: q.professional?.user?.profile?.displayName || 'Professional',
         createdAt: q.createdAt,
         expiresAt: q.expiresAt,
       })),
       payments: caseRecord.payments.map((p) => ({
         id: p.id,
         status: p.status,
-        amount: p.amount,
+        amount: p.grossAmount,
         currency: p.currency,
         createdAt: p.createdAt,
       })),
@@ -126,9 +126,7 @@ export async function POST(request: NextRequest) {
         ? {
             name:
               caseRecord.participants.find((p) => p.role === 'PROFESSIONAL')?.user?.profile
-                ?.displayName ||
-              caseRecord.participants.find((p) => p.role === 'PROFESSIONAL')?.user?.name ||
-              'Assigned Professional',
+                ?.displayName || 'Assigned Professional',
           }
         : null,
     };

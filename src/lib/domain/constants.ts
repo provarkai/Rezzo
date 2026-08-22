@@ -2,6 +2,25 @@
 // REZZO Domain Constants & Types
 // ============================================================
 
+// A safe, reusable Prisma `select` for a User relation nested under
+// something else (case participants, professionals, quote/message
+// senders, ...). Every one of the call sites this replaced used
+// `include: { user: { include: {...} } }`, which pulls in every scalar
+// field on User by default — including `password` (the scrypt hash) —
+// and several of them serialize the result straight into an API response
+// (GET /cases/[id], /admin/professionals, /admin/cases,
+// /cases/[id]/quotes, /guest/lookup all leaked it this way). Nothing
+// downstream ever read a nested user's password/createdAt/updatedAt, so
+// this is a strict narrowing, not a behavior change.
+export const PUBLIC_USER_SELECT = {
+  id: true,
+  phone: true,
+  email: true,
+  role: true,
+  status: true,
+  profile: true,
+} as const;
+
 // ============ CASE STATES ============
 export const CASE_STATES = {
   NEW: 'NEW',

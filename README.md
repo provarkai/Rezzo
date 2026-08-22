@@ -1,6 +1,6 @@
 # Rezzo
 
-REZZO — Nigeria V1: an AI-powered resolution network connecting customers with verified professionals across Property & Housing, Business & Enterprise, Home & Technical, and Government & Documentation. Built with Next.js, Prisma (SQLite), and shadcn/ui.
+REZZO — Nigeria V1: an AI-powered resolution network connecting customers with verified professionals across Property & Housing, Business & Enterprise, Home & Technical, and Government & Documentation. Built with Next.js, Prisma (Postgres), and shadcn/ui.
 
 See `worklog.md` for a running build log of what has been implemented.
 
@@ -9,12 +9,43 @@ See `worklog.md` for a running build log of what has been implemented.
 ```bash
 bun install          # or npm/yarn/pnpm install
 cp .env.example .env
+# Point DATABASE_URL at a Postgres instance — see "Database" below.
 bun run db:generate
 bun run db:push
 bun run dev           # http://localhost:3000
 ```
 
 Seed demo data (customers, professionals, admin, sample case) via `bun run db:seed` (see `prisma/seed.ts`), or by calling `POST /api/v1/seed` once you're authenticated as an admin.
+
+### Database
+
+The schema (`prisma/schema.prisma`) targets Postgres — every model is plain
+`String`/`Json`/`DateTime` columns with `cuid()` ids, nothing SQLite- or
+Postgres-specific, so the switch was a one-line `provider` change plus a
+fresh migration history (there was no committed migration history to carry
+over; the project had only ever used `db push`).
+
+- **Local dev**: run Postgres in a container —
+  `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16` —
+  and set `DATABASE_URL="postgresql://postgres:postgres@localhost:5432/rezzo"`
+  (create the `rezzo` database once: `createdb rezzo` or
+  `psql -U postgres -c 'create database rezzo;'`). Then `bun run db:push` to
+  apply the schema.
+- **First production migration**: run `bun run db:migrate` (`prisma migrate
+  dev --name init`) once against a real Postgres instance to generate
+  `prisma/migrations/` from this schema — that has to happen outside this
+  sandbox, since there's no working Prisma CLI/`node_modules` here to
+  actually execute it against a database. From then on, deploy with
+  `bun run db:migrate:deploy` (`prisma migrate deploy`, non-interactive,
+  safe for CI/CD) rather than `db:push`, which is a dev-only,
+  data-loss-accepting command.
+- `postinstall` now runs `prisma generate` automatically, so a fresh
+  `bun install` (e.g. on a deploy platform) always regenerates the client
+  against the current schema before `next build` runs.
+- Case-insensitive lookups (`mode: 'insensitive'`, used by guest case
+  lookup) are a Postgres/MongoDB-only Prisma feature — it was already in
+  the code but had no effect (and could error) against SQLite; it works as
+  intended now.
 
 ### Demo accounts
 
@@ -74,6 +105,49 @@ Two related bugs, both in `Homepage.tsx`'s login dialog: the "smart onboarding" 
 
 Diagnosing that also surfaced a second, more fundamental bug in `apiFetch()` (`rezzo-store.ts`) itself: every 401 response was treated as "your session expired," logging the user out and showing that message regardless of which endpoint sent it — including `/auth/login`'s own 401 for a plain wrong password, on a request that never carried a session token to begin with. A 401 only means "session expired" when the request actually sent a token that got rejected; `apiFetch` now only takes that branch when a token was present, so an unauthenticated request's real error message (login's "Invalid phone/email or password," or `api-auth.ts`'s "Valid authentication token required" for anything else) reaches the caller instead of being replaced. `apiFetch` also now throws a typed `ApiError` (carrying the server's `code` alongside the message) rather than a plain `Error` — what the login-dialog fix above needed to tell "account already exists" apart from any other failure without matching on message text.
 
+### Security
+
+A review pass found and fixed a class of password-hash leaks: many Prisma
+queries pulled in a related `User` via `include: { user: { include: {...} } }`
+rather than `select`, which fetches every scalar column by default —
+including `password` (a `scrypt:<salt>:<hash>` string) — and several of
+those results were serialized straight into API responses. Two of the
+affected routes (`GET /api/v1/professionals`, `GET
+/api/v1/professionals/[id]`) are intentionally public and unauthenticated,
+making this bulk-exploitable: anyone could pull every professional's
+password hash off the public directory endpoint without logging in. Fixed
+by adding `PUBLIC_USER_SELECT` (`src/lib/domain/constants.ts`) — a shared
+`select` covering only the fields anything downstream actually reads — and
+using it everywhere a nested `user`/`sender` relation is fetched, across
+`case-engine.ts`, `matching-engine.ts`, `verification.ts`,
+`ai-orchestrator.ts`, and the `admin/cases`, `admin/professionals`,
+`cases/[id]/quotes`, and `guest/lookup` routes.
+
+Also fixed in the same pass:
+- **Review IDOR**: `POST /cases/[id]/reviews` checked that the caller owns
+  the case but took `professionalId` straight from the request body,
+  letting any customer rate (or tank the trust score of) a professional
+  who never worked their case. `submitReview()` now requires a matching
+  `Booking` row — the actual record of who was assigned — before accepting
+  the review.
+- **Payment double-confirmation race**: `confirmPayment()` read the
+  payment's status, then wrote `SUCCESS` in a separate step — two
+  concurrent callers (a Paystack webhook retry racing the original
+  delivery, or a double-click on the MOCK confirm button) could both pass
+  the check before either write landed, double-funding a case and creating
+  duplicate commission ledger entries. SQLite's single-writer lock masked
+  this in dev; Postgres in production wouldn't have. Fixed with an atomic
+  conditional update (`updateMany` gated on `status: 'PENDING'`) so only
+  one caller can win the race.
+- **Guest lookup field bugs**: `GET`-safe fields `q.amount`/`p.amount` and
+  `.user?.name` don't exist on `Quote`/`Payment`/`User` (real fields are
+  `totalAmount`/`grossAmount`, and display name only lives on `Profile`) —
+  guest tracking showed `₦undefined` and blank professional names.
+- **Seed endpoint**: `POST /api/v1/seed` wipes every table before
+  reseeding and was already ADMIN-role-gated, but nothing stopped an admin
+  account from triggering it against a live database. Added an explicit
+  `ALLOW_SEED_IN_PRODUCTION` opt-in on top of the role check.
+
 ### Design Tokens
 
 Brand colors are Tailwind utility classes (`bg-rezzo-navy`, `text-rezzo-green`, `bg-rezzo-gold`, `text-rezzo-danger`, `bg-rezzo-warning`) backed by CSS custom properties in `src/app/globals.css`. The token layer has existed since the transfer, but most of the app was written with raw arbitrary hex instead (`bg-[#102A43]`) — `rezzo-navy` in particular, the most-used brand color, had zero adoption before this pass. The shared `src/components/rezzo/*` primitives now use the tokens; the rest of the app (~30 page components, ~500 raw hex occurrences) is a known, documented gap — see the comment above `:root` in `globals.css` for the full picture and why a blind mechanical find-replace across every file wasn't the right call without a browser in this sandbox to verify against.
@@ -88,4 +162,4 @@ Brand colors are Tailwind utility classes (`bg-rezzo-navy`, `text-rezzo-green`, 
 - `build` / `start` — production build/run
 - `lint` — ESLint
 - `test` — run the unit test suite (`bun test`)
-- `db:push` / `db:generate` / `db:migrate` / `db:reset` — Prisma database tasks
+- `db:push` / `db:generate` / `db:migrate` / `db:migrate:deploy` / `db:reset` — Prisma database tasks (see "Database" above)

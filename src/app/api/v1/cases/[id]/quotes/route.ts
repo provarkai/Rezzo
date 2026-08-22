@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse, CASE_EVENTS, isVerificationActive } from '@/lib/domain/constants';
+import { successResponse, errorResponse, CASE_EVENTS, isVerificationActive, PUBLIC_USER_SELECT } from '@/lib/domain/constants';
 import { addCaseEvent, addParticipant, transitionCase } from '@/lib/domain/case-engine';
 import { notify } from '@/lib/domain/notification-service';
 import { z } from 'zod';
@@ -166,7 +166,7 @@ export async function GET(
       where: { caseId: id },
       include: {
         professional: {
-          include: { user: { include: { profile: true } } },
+          include: { user: { select: PUBLIC_USER_SELECT } },
         },
         service: true,
         milestones: true,

@@ -11,6 +11,7 @@ import {
   AI_REZZO_SYSTEM_PROMPT,
   AI_ESCALATION_CONFIDENCE_THRESHOLD,
   AI_JOB_STATUSES,
+  PUBLIC_USER_SELECT,
   type CaseEventType,
 } from './constants';
 import { transitionCase, addCaseEvent, createMatterForCase } from './case-engine';
@@ -314,7 +315,7 @@ export async function orchestrateCase(caseId: string): Promise<AiOrchestrationRe
   // Get case with need
   const caseRecord = await db.case.findUnique({
     where: { id: caseId },
-    include: { need: true, matter: true, user: { include: { profile: true } } },
+    include: { need: true, matter: true, user: { select: PUBLIC_USER_SELECT } },
   });
 
   if (!caseRecord || !caseRecord.need) {

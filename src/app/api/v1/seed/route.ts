@@ -13,6 +13,19 @@ export async function POST(request: NextRequest) {
     const auth = await getApiUser(request, { requireRole: ['ADMIN'] });
     if (isAuthError(auth)) return auth.response;
 
+    // This wipes every table before reseeding demo data — ADMIN-only, but
+    // an admin account existing in production doesn't mean this route
+    // should be reachable there. One misclick against a live database
+    // deletes every real user, case, and payment. Gate it behind an
+    // explicit opt-in rather than just NODE_ENV, since a pilot/staging
+    // deploy may legitimately run with NODE_ENV=production too.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED_IN_PRODUCTION !== 'true') {
+      return NextResponse.json(
+        errorResponse('FORBIDDEN', 'Seeding is disabled in production. Set ALLOW_SEED_IN_PRODUCTION=true to override.'),
+        { status: 403 }
+      );
+    }
+
     // Dynamic import of the seed script
     // We re-implement the seed inline since the seed.ts uses a different db instance
     const { db } = await import('@/lib/db');

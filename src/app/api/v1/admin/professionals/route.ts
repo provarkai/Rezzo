@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, isAuthError } from '@/lib/api-auth';
-import { successResponse, errorResponse } from '@/lib/domain/constants';
+import { successResponse, errorResponse, PUBLIC_USER_SELECT } from '@/lib/domain/constants';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       db.professional.findMany({
         where,
         include: {
-          user: { include: { profile: true } },
+          user: { select: PUBLIC_USER_SELECT },
           skills: true,
           credentials: true,
           _count: {

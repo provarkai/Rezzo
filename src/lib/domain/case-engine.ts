@@ -14,6 +14,7 @@ import {
   PROTECTION_BENEFIT_TYPES,
   PROTECTION_BENEFIT_STATUSES,
   DISPUTE_STATUSES,
+  PUBLIC_USER_SELECT,
   type CaseState,
   type CaseEventType,
 } from './constants';
@@ -314,14 +315,14 @@ export async function getCaseWithDetails(caseId: string): Promise<CaseDetails | 
       participants: {
         include: {
           user: {
-            include: { profile: true, professional: true },
+            select: { ...PUBLIC_USER_SELECT, professional: true },
           },
         },
       },
       quotes: {
         include: {
           professional: {
-            include: { user: { include: { profile: true } } },
+            include: { user: { select: PUBLIC_USER_SELECT } },
           },
           service: true,
         },
@@ -336,7 +337,7 @@ export async function getCaseWithDetails(caseId: string): Promise<CaseDetails | 
       messages: {
         include: {
           sender: {
-            include: { profile: true, professional: true },
+            select: { ...PUBLIC_USER_SELECT, professional: true },
           },
         },
         orderBy: { createdAt: 'asc' },
@@ -479,8 +480,8 @@ export async function listUserCases(userId: string, page = 1, limit = 20) {
       include: {
         need: true,
         matter: true,
-        user: { include: { profile: true } },
-        participants: { include: { user: { include: { profile: true } } } },
+        user: { select: PUBLIC_USER_SELECT },
+        participants: { include: { user: { select: PUBLIC_USER_SELECT } } },
         _count: {
           select: {
             events: true,
@@ -596,7 +597,7 @@ export async function getCaseMessages(caseId: string, page = 1, limit = 50) {
       where: { caseId },
       include: {
         sender: {
-          include: { profile: true, professional: true },
+          select: { ...PUBLIC_USER_SELECT, professional: true },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -775,6 +776,22 @@ export async function submitReview(
   rating: number,
   comment?: string
 ) {
+  // The route only checks that the caller owns the case — professionalId
+  // itself comes straight from the request body. Without this check, any
+  // customer could rate (or tank the trust score of) an arbitrary
+  // professional by passing their id on a case that professional never
+  // worked, since nothing tied the review to who actually did the job.
+  // A Booking row is the authoritative record of who was actually assigned
+  // to this case (created when a quote turns into a scheduled job), so it's
+  // the right thing to check against rather than e.g. case participants,
+  // which a professional can join just by quoting.
+  const booking = await db.booking.findFirst({
+    where: { caseId, professionalId },
+  });
+  if (!booking) {
+    throw new Error('This professional is not assigned to this case');
+  }
+
   // Check for existing review
   const existing = await db.review.findUnique({
     where: {
