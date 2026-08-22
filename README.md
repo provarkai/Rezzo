@@ -9,7 +9,7 @@ See `worklog.md` for a running build log of what has been implemented.
 ```bash
 bun install          # or npm/yarn/pnpm install
 cp .env.example .env
-# Point DATABASE_URL at a Postgres instance — see "Database" below.
+# Point DATABASE_URL/DIRECT_URL at a Postgres instance (Neon) — see "Database" below.
 bun run db:generate
 bun run db:push
 bun run dev           # http://localhost:3000
@@ -17,35 +17,74 @@ bun run dev           # http://localhost:3000
 
 Seed demo data (customers, professionals, admin, sample case) via `bun run db:seed` (see `prisma/seed.ts`), or by calling `POST /api/v1/seed` once you're authenticated as an admin.
 
-### Database
+### Database (Neon)
 
 The schema (`prisma/schema.prisma`) targets Postgres — every model is plain
 `String`/`Json`/`DateTime` columns with `cuid()` ids, nothing SQLite- or
-Postgres-specific, so the switch was a one-line `provider` change plus a
-fresh migration history (there was no committed migration history to carry
-over; the project had only ever used `db push`).
+Postgres-specific — and is set up for [Neon](https://neon.tech) (free tier,
+no card required) as the production database, matched to Vercel as the host
+below.
 
-- **Local dev**: run Postgres in a container —
-  `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16` —
-  and set `DATABASE_URL="postgresql://postgres:postgres@localhost:5432/rezzo"`
-  (create the `rezzo` database once: `createdb rezzo` or
-  `psql -U postgres -c 'create database rezzo;'`). Then `bun run db:push` to
-  apply the schema.
-- **First production migration**: run `bun run db:migrate` (`prisma migrate
-  dev --name init`) once against a real Postgres instance to generate
-  `prisma/migrations/` from this schema — that has to happen outside this
-  sandbox, since there's no working Prisma CLI/`node_modules` here to
-  actually execute it against a database. From then on, deploy with
-  `bun run db:migrate:deploy` (`prisma migrate deploy`, non-interactive,
-  safe for CI/CD) rather than `db:push`, which is a dev-only,
-  data-loss-accepting command.
-- `postinstall` now runs `prisma generate` automatically, so a fresh
-  `bun install` (e.g. on a deploy platform) always regenerates the client
-  against the current schema before `next build` runs.
-- Case-insensitive lookups (`mode: 'insensitive'`, used by guest case
-  lookup) are a Postgres/MongoDB-only Prisma feature — it was already in
-  the code but had no effect (and could error) against SQLite; it works as
-  intended now.
+1. Sign up at neon.tech, create a project (pick a region close to where
+   Vercel will run — `us-east-1`/`iad1` if unsure). Neon creates a `neondb`
+   database by default; rename it or create a `rezzo` one from its SQL
+   editor if you'd rather.
+2. From the project dashboard's **Connection Details** panel, copy both
+   connection strings into `.env` (see `.env.example`):
+   - `DATABASE_URL` — the **pooled** string (hostname contains `-pooler`).
+     Used at runtime. Required on Vercel: each serverless function
+     invocation can open its own connection, and a handful of concurrent
+     invocations exhausts Postgres's direct-connection limit without
+     PgBouncer pooling in front of it.
+   - `DIRECT_URL` — the **direct** (unpooled) string. Only
+     `prisma migrate`/`prisma db push` use this — PgBouncer's
+     transaction-mode pooling doesn't support the prepared statements
+     schema changes need.
+3. `bun run db:push` (dev) or `bun run db:migrate` (generates
+   `prisma/migrations/` the first time — see below) to apply the schema.
+
+Local dev without Neon: run Postgres in a container instead —
+`docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16` —
+and point both `DATABASE_URL` and `DIRECT_URL` at it (no pooling needed
+locally, so they can be identical).
+
+**First migration**: there's no committed migration history yet (the
+project had only ever used `db push`). Run `bun run db:migrate` (`prisma
+migrate dev --name init`) once, locally, against your Neon `DIRECT_URL`, to
+generate `prisma/migrations/init/` from this schema and commit it — that
+has to happen outside this sandbox, since there's no working Prisma
+CLI/`node_modules` here to actually execute it against a database. After
+that, deploy schema changes with `bun run db:migrate:deploy` (`prisma
+migrate deploy`, non-interactive) rather than `db:push`, which is a
+dev-only, data-loss-accepting command.
+
+`postinstall` runs `prisma generate` automatically, so Vercel's `bun
+install` step always regenerates the client against the current schema
+before `next build` runs — no separate build step needed for that.
+
+Case-insensitive lookups (`mode: 'insensitive'`, used by guest case lookup)
+are a Postgres/MongoDB-only Prisma feature — it was already in the code but
+had no effect (and could error) against SQLite; it works as intended now.
+
+### Deployment (Vercel)
+
+The app deploys to [Vercel](https://vercel.com) (free Hobby tier, no card
+required) as-is — import the GitHub repo, Vercel auto-detects Next.js.
+
+- **Environment variables**: set `DATABASE_URL`, `DIRECT_URL`,
+  `REZZO_TOKEN_SECRET` (generate one: `openssl rand -base64 32`), and
+  whichever of the Paystack/WhatsApp/PostHog vars you're using, in the
+  Vercel project's Settings → Environment Variables. `APP_URL` should be
+  your Vercel deployment URL (or custom domain) once you have one, for
+  Paystack's checkout callback.
+- `output: "standalone"` in `next.config.ts` and the `cp -r .next/static
+  ...` step in the `build` script are for self-hosting outside Vercel (see
+  the `Caddyfile` in the repo root, for a reverse-proxied VM/container
+  deployment) — Vercel ignores `.next/standalone` and packages routes into
+  its own serverless functions instead, so neither gets in the way of a
+  Vercel deploy; you only need the `Caddyfile` if you deploy elsewhere.
+- The `start` script (`bun .next/standalone/server.js`) is likewise only
+  for that self-hosted path — Vercel never runs it.
 
 ### Demo accounts
 

@@ -3,8 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Neon's pooled endpoint (PgBouncer, transaction mode) — required at
+  // runtime on Vercel: each serverless function invocation can spin up its
+  // own Prisma Client/connection pool, and a handful of concurrent
+  // invocations is enough to exhaust Postgres's direct connection limit
+  // without pooling in front of it.
+  url       = env("DATABASE_URL")
+  // Neon's direct (unpooled) endpoint. Prisma's migration engine needs a
+  // direct connection — PgBouncer's transaction-mode pooling doesn't
+  // support the prepared statements/session state `prisma migrate` and
+  // `prisma db push` rely on. Only used for migrations, never at runtime.
+  directUrl = env("DIRECT_URL")
 }
 
 // ============ ENUMS (kept as plain String columns, not Postgres enums) ============
