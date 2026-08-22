@@ -98,6 +98,25 @@ Registration and login require a password (min. 8 characters) — there is no pa
 
 The homepage's "Quick Demo Access" buttons log into these same seeded accounts by phone — Customer and Professional used to use different, unseeded numbers (`08010000001`/`08020000001`), so the buttons never found the real accounts and silently created bare throwaway ones instead, with none of the seeded skills/services/trust score/reviews the Professional demo in particular is supposed to show off. Fixed to use the real seeded phones above.
 
+### AI (Claude API)
+
+AI REZZO's case-intake classification (`orchestrateCase()` in
+`ai-orchestrator.ts` — turning a customer's raw description into an
+intent/category/vertical/risk-level classification, PRD §"AI REZZO") calls
+the real Claude API (`@anthropic-ai/sdk`, model `claude-opus-5`) when
+`ANTHROPIC_API_KEY` is set. Get a key at
+[console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
+
+This replaces `z-ai-web-dev-sdk`, which the app shipped with originally —
+that package talks to a sandbox-specific dev backend with no API key of its
+own, which works only inside the environment it was scaffolded in and has
+no path to a real production deployment (nothing to configure on Vercel;
+the import would just fail there). `ANTHROPIC_API_KEY` unset is a
+supported, non-broken state: `orchestrateCase()` falls straight to
+`mockAiOrchestration()`, a keyword-matching classifier that's always been
+the fallback for a failed/timed-out LLM call — the app runs and cases still
+get classified without a key, just less precisely.
+
 ### Payments
 
 Without `PAYSTACK_SECRET_KEY` set, payments use a MOCK provider that self-confirms client-side — fine for demos, but nothing real ever moves. Set `PAYSTACK_SECRET_KEY` (a test key is enough for staging) to switch on real Paystack checkout: the customer is redirected to Paystack's hosted page, and confirmation happens only via Paystack's webhook, never a client click. Point the webhook at `POST /api/v1/payments/webhooks/paystack` in the Paystack dashboard (Settings → API Keys & Webhooks) for this to actually fire in a deployed environment — Paystack can't reach `localhost`, so local testing needs a tunnel (e.g. `ngrok http 3000`) with that URL registered instead.

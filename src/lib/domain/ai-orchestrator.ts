@@ -3,6 +3,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import {
   CASE_STATES,
   CASE_EVENTS,
@@ -11,6 +12,7 @@ import {
   AI_REZZO_SYSTEM_PROMPT,
   AI_ESCALATION_CONFIDENCE_THRESHOLD,
   AI_JOB_STATUSES,
+  AI_MODEL,
   PUBLIC_USER_SELECT,
   type CaseEventType,
 } from './constants';
@@ -269,19 +271,25 @@ function mockAiOrchestration(rawInput: string): AiOrchestrationResult {
 // ============ AI ORCHESTRATION WITH LLM ============
 
 async function callLlmOrchestration(rawInput: string): Promise<AiOrchestrationResult | null> {
+  // No key configured (local dev without one, or the var simply unset) —
+  // skip straight to the mock rather than letting the SDK throw on an
+  // empty/missing credential.
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+
   try {
     // Dynamic import to avoid bundling on client
-    const { llm } = await import('z-ai-web-dev-sdk');
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic();
 
-    const response = await llm.chat({
-      messages: [
-        { role: 'system', content: AI_REZZO_SYSTEM_PROMPT },
-        { role: 'user', content: rawInput },
-      ],
-      temperature: 0.3,
+    const response = await client.messages.create({
+      model: AI_MODEL,
+      max_tokens: 4096,
+      system: AI_REZZO_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: rawInput }],
     });
 
-    const content = typeof response === 'string' ? response : (response as Record<string, unknown>).content as string || JSON.stringify(response);
+    const textBlock = response.content.find((b) => b.type === 'text');
+    const content = textBlock?.text ?? '';
 
     // Try to parse JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -303,8 +311,11 @@ async function callLlmOrchestration(rawInput: string): Promise<AiOrchestrationRe
         humanRequired: !!parsed.humanRequired,
       };
     }
-  } catch {
-    // LLM call failed, fall through to mock
+  } catch (err) {
+    // LLM call failed (bad key, rate limit, network) — fall through to the
+    // mock rather than failing case intake outright. Logged so a silently
+    // misconfigured key doesn't look like the mock working as intended.
+    logger.warn('Claude orchestration call failed, falling back to mock', { error: err });
   }
   return null;
 }

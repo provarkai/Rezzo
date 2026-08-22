@@ -165,6 +165,11 @@ export const RISK_LEVELS = {
 // re-asking the customer for clarification and proceeding on its own.
 export const AI_ESCALATION_CONFIDENCE_THRESHOLD = 40;
 
+// Model used for AI REZZO's case-intake classification (ai-orchestrator.ts).
+// A single classification call per case, not an agentic/tool-using flow, so
+// there's no need for thinking/tool-use config here — just model choice.
+export const AI_MODEL = 'claude-opus-5';
+
 // PRD §16.2. Detected independently of the vertical/category classifier
 // (mock or LLM) as a deterministic keyword safety net — the point is that
 // this check doesn't rely on the AI's own judgment of its risk.
